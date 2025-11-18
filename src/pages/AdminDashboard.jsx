@@ -86,6 +86,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
   const [facultyForm, setFacultyForm] = useState({ nameUz: "", nameRu: "" })
   const [showFacultyForm, setShowFacultyForm] = useState(false)
   const [editingFacultyId, setEditingFacultyId] = useState(null)
+  const [viewFaculty, setViewFaculty] = useState(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState(null)
   const [showDeleteTeacherConfirm, setShowDeleteTeacherConfirm] = useState(false)
@@ -284,7 +285,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
   }
 
   const handleViewFaculty = (faculty) => {
-    alert(`Fakultet: ${faculty.nameUz}\n${faculty.nameRu}`)
+    setViewFaculty(faculty)
   }
 
   const handleAddDepartment = (event) => {
@@ -834,6 +835,61 @@ export default function AdminDashboard({ onLogout, navigate }) {
 
             {activeNavItem === "categories" && (
               <>
+                {/* View Faculty Modal */}
+                {viewFaculty && (
+                  <div
+                    className="fixed inset-0 bg-black bg-opacity-0 z-50 flex items-center justify-center p-4"
+                    onClick={() => setViewFaculty(null)}
+                    style={{
+                      animation: 'fadeIn 0.3s ease-in-out forwards'
+                    }}
+                  >
+                    <div
+                      className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-xl p-6 w-full max-w-md relative`}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        animation: 'slideUp 0.3s ease-out forwards'
+                      }}
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <h2
+                          className={`text-xl font-bold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
+                        >
+                          Fakultet ma'lumotlari
+                        </h2>
+                        <button
+                          onClick={() => setViewFaculty(null)}
+                          className={`transition-colors ${isDarkMode ? "text-[#8b9ba8] hover:text-white" : "text-slate-600 hover:text-slate-900"}`}
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>
+                            O'zbek nomi:
+                          </p>
+                          <p
+                            className={`font-semibold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
+                          >
+                            {viewFaculty.nameUz}
+                          </p>
+                        </div>
+                        <div>
+                          <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>
+                            Rus nomi:
+                          </p>
+                          <p
+                            className={`font-semibold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
+                          >
+                            {viewFaculty.nameRu}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Delete Confirmation Modal */}
                 {showDeleteConfirm && (
                   <div
@@ -1969,7 +2025,17 @@ export default function AdminDashboard({ onLogout, navigate }) {
                             {review.teacherName} | {review.date}
                           </p>
                         </div>
-                        <span className="text-yellow-400">{"⭐".repeat(review.rating)}</span>
+                        <div className="flex gap-0.5">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <span 
+                              key={star} 
+                              className={star <= review.rating ? "text-yellow-400" : (isDarkMode ? "text-gray-600" : "text-gray-300")}
+                              style={{ fontSize: '1.1em' }}
+                            >
+                              ★
+                            </span>
+                          ))}
+                        </div>
                       </div>
                       <p className={`transition-colors duration-300 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>{review.comment}</p>
                     </div>

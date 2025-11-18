@@ -1,7 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { mockData } from "../data/mockData"
+import { CheckCircle, X } from "lucide-react"
 
 const SCORE_FIELDS = [
   { key: "overall", label: "Umumiy" },
@@ -60,11 +61,21 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
     comment: "",
     scores: createDefaultScores(),
   })
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
 
   const averages = useMemo(() => computeCategoryAverages(reviews), [reviews])
   const totalReviews = reviews.length
   const overallRating = totalReviews ? formatRating(averages.overall || 0) : "0.0"
   const qrSrc = getQrCodeSrc(teacher)
+
+  useEffect(() => {
+    if (showSuccessModal) {
+      const timer = setTimeout(() => {
+        setShowSuccessModal(false)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [showSuccessModal])
 
   const handleSubmit = (event) => {
     event.preventDefault()
@@ -99,7 +110,7 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
       comment: "",
       scores: createDefaultScores(),
     })
-    alert("Sharhingiz muvaffaqiyatli yuborildi!")
+    setShowSuccessModal(true)
   }
 
   const handleScoreChange = (key, value) => {
@@ -111,6 +122,25 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
 
   return (
     <div className="space-y-8">
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg p-8 max-w-sm mx-4 text-center shadow-xl relative">
+            <button
+              onClick={() => setShowSuccessModal(false)}
+              className="absolute top-3 right-3 text-red-500 hover:text-red-700 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <div className="flex justify-center mb-4">
+              <CheckCircle className="w-16 h-16 text-green-500" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Muvaffaqiyatli Jo'natildi</h3>
+            <p className="text-slate-600">Sharhingiz muvaffaqiyatli yuborildi!</p>
+          </div>
+        </div>
+      )}
+
       {onBack && (
         <button onClick={onBack} className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg">
           ← Orqaga
@@ -160,8 +190,17 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
           </div>
 
           <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg mb-4 mt-6">
-            <p className="text-sm font-semibold text-yellow-700">Reyting: {overallRating}/5</p>
-            <p className="text-xs text-yellow-600">{totalReviews} ta sharh asosida</p>
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <div className="flex gap-0.5">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <span key={star} className={star <= Math.round(parseFloat(overallRating)) ? "text-yellow-500" : "text-gray-300"} style={{ fontSize: '1.3em' }}>
+                    ★
+                  </span>
+                ))}
+              </div>
+              <span className="text-sm font-semibold text-yellow-700">{overallRating}/5</span>
+            </div>
+            <p className="text-xs text-yellow-600 text-center">{totalReviews} ta sharh asosida</p>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -262,7 +301,16 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
                     <p className="font-medium text-slate-900">{review.studentName}</p>
                     <p className="text-xs text-slate-500">{review.date}</p>
                   </div>
-                  <span className="text-yellow-500 font-semibold">{formatRating(review.rating)} / 5</span>
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-0.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <span key={star} className={star <= review.rating ? "text-yellow-500" : "text-gray-300"} style={{ fontSize: '1.1em' }}>
+                          ★
+                        </span>
+                      ))}
+                    </div>
+                    <span className="text-yellow-500 font-semibold text-sm">{formatRating(review.rating)}</span>
+                  </div>
                 </div>
                 <p className="text-sm text-slate-600 mb-3">{review.comment}</p>
                 <div className="flex flex-wrap gap-2">

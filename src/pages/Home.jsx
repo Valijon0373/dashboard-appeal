@@ -156,9 +156,18 @@ export default function Home({ navigate }) {
                           <p className="font-medium text-slate-900">{review.studentName}</p>
                           <p className="text-sm text-slate-500">{review.teacherName}</p>
                         </div>
-                        <span className="text-yellow-500 font-semibold">
-                          {(review.scores?.overall ?? review.rating ?? 0).toFixed(1)} / 5
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <div className="flex gap-0.5">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <span key={star} className={star <= Math.round(review.scores?.overall ?? review.rating ?? 0) ? "text-yellow-500" : "text-gray-300"} style={{ fontSize: '0.9em' }}>
+                                ★
+                              </span>
+                            ))}
+                          </div>
+                          <span className="text-yellow-500 font-semibold text-sm">
+                            {(review.scores?.overall ?? review.rating ?? 0).toFixed(1)}
+                          </span>
+                        </div>
                       </div>
                       <p className="text-sm text-slate-600 line-clamp-2">{review.comment}</p>
                     </div>
@@ -229,7 +238,16 @@ export default function Home({ navigate }) {
                         <p className="font-medium text-slate-900">{teacher.name}</p>
                         <p className="text-sm text-slate-500">{teacher.department}</p>
                       </div>
-                      <span className="font-bold text-blue-600">{teacher.avg} ⭐</span>
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex gap-0.5">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <span key={star} className={star <= Math.round(teacher.avg) ? "text-yellow-500" : "text-gray-300"} style={{ fontSize: '0.9em' }}>
+                              ★
+                            </span>
+                          ))}
+                        </div>
+                        <span className="font-bold text-blue-600 text-sm">{teacher.avg}</span>
+                      </div>
                     </div>
                   ))}
               </div>

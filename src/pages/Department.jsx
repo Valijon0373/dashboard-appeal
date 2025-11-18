@@ -109,7 +109,16 @@ export default function Department({ id, navigate }) {
                 )}
                 <div className="flex justify-between items-center pt-2">
                   <span className="text-sm text-slate-500">{reviews.length} sharh</span>
-                  <span className="font-semibold text-yellow-500">{avgRating}/5 ⭐</span>
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex gap-0.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <span key={star} className={star <= Math.round(avgRating) ? "text-yellow-500" : "text-gray-300"} style={{ fontSize: '0.9em' }}>
+                          ★
+                        </span>
+                      ))}
+                    </div>
+                    <span className="font-semibold text-yellow-500 text-sm">{avgRating}/5</span>
+                  </div>
                 </div>
                 <button
                   type="button"
