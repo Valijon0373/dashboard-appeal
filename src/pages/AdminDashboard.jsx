@@ -360,8 +360,11 @@ export default function AdminDashboard({ onLogout, navigate }) {
 
   const handleAddOrUpdateTeacher = (event) => {
     event.preventDefault()
-    if (!teacherForm.name || !teacherForm.departmentId) {
-      alert("Iltimos, o'qituvchi ismi va kafedrasini tanlang")
+    
+    // Validate required fields
+    if (!teacherForm.name || !teacherForm.title || !teacherForm.departmentId || 
+        !teacherForm.phone || !teacherForm.email || !imagePreview) {
+      alert("Iltimos, barcha majburiy maydonlarni to'ldiring: Ism, Lavozim, Kafedra, Telefon, Rasm va Pochta")
       return
     }
 
@@ -1541,7 +1544,9 @@ export default function AdminDashboard({ onLogout, navigate }) {
                     </div>
                     <form onSubmit={handleAddOrUpdateTeacher} className="space-y-4">
                     <div>
-                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>F.I.Sh</label>
+                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
+                        F.I.Sh <span className="text-red-500">*</span>
+                      </label>
                       <input
                         type="text"
                         value={teacherForm.name}
@@ -1555,9 +1560,10 @@ export default function AdminDashboard({ onLogout, navigate }) {
                       />
                     </div>
                     <div>
-                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>Lavozim</label>
-                      <input
-                        type="text"
+                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
+                        Lavozim <span className="text-red-500">*</span>
+                      </label>
+                      <select
                         value={teacherForm.title}
                         onChange={(event) => setTeacherForm({ ...teacherForm, title: event.target.value })}
                         className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#00d4aa] transition-colors duration-300 ${
@@ -1565,8 +1571,13 @@ export default function AdminDashboard({ onLogout, navigate }) {
                             ? "bg-[#0e1a22] border-[#1a2d3a] text-white"
                             : "bg-white border-slate-300 text-slate-900"
                         }`}
-                        placeholder="Masalan: Professor"
-                      />
+                      >
+                        <option value="">Lavozim tanlang</option>
+                        <option value="Kafedra Mudiri">Kafedra Mudiri</option>
+                        <option value="Dotsent">Dotsent</option>
+                        <option value="O'qituvchi">O'qituvchi</option>
+                        <option value="O'qituvchi-Stajor">O'qituvchi-Stajor</option>
+                      </select>
                     </div>
                     <div>
                       <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>Mutaxassislik</label>
@@ -1583,7 +1594,9 @@ export default function AdminDashboard({ onLogout, navigate }) {
                       />
                     </div>
                     <div>
-                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>Kafedra</label>
+                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
+                        Kafedra <span className="text-red-500">*</span>
+                      </label>
                       <select
                         value={teacherForm.departmentId}
                         onChange={(event) => {
@@ -1609,7 +1622,9 @@ export default function AdminDashboard({ onLogout, navigate }) {
                       </select>
                     </div>
                     <div>
-                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>Email</label>
+                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
+                        Email <span className="text-red-500">*</span>
+                      </label>
                       <input
                         type="email"
                         value={teacherForm.email}
@@ -1623,17 +1638,41 @@ export default function AdminDashboard({ onLogout, navigate }) {
                       />
                     </div>
                     <div>
-                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>Telefon</label>
+                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
+                        Telefon <span className="text-red-500">*</span>
+                      </label>
                       <input
                         type="tel"
                         value={teacherForm.phone}
-                        onChange={(event) => setTeacherForm({ ...teacherForm, phone: event.target.value })}
+                        onChange={(event) => {
+                          const value = event.target.value
+                          // Remove all non-digit characters
+                          const digits = value.replace(/\D/g, '')
+                          
+                          // Format: +998 XX XXX XX XX
+                          let formatted = '+998'
+                          if (digits.length > 3) {
+                            formatted += ' ' + digits.slice(3, 5)
+                          }
+                          if (digits.length > 5) {
+                            formatted += ' ' + digits.slice(5, 8)
+                          }
+                          if (digits.length > 8) {
+                            formatted += ' ' + digits.slice(8, 10)
+                          }
+                          if (digits.length > 10) {
+                            formatted += ' ' + digits.slice(10, 12)
+                          }
+                          
+                          setTeacherForm({ ...teacherForm, phone: formatted })
+                        }}
                         className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#00d4aa] transition-colors duration-300 ${
                           isDarkMode
                             ? "bg-[#0e1a22] border-[#1a2d3a] text-white"
                             : "bg-white border-slate-300 text-slate-900"
                         }`}
-                        placeholder="+99890..."
+                        placeholder="+998 90 123 45 67"
+                        maxLength="17"
                       />
                     </div>
                     <div>
@@ -1679,7 +1718,9 @@ export default function AdminDashboard({ onLogout, navigate }) {
                       />
                     </div>
                     <div>
-                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>Rasm yuklash</label>
+                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
+                        Rasm yuklash <span className="text-red-500">*</span>
+                      </label>
                       <input
                         type="file"
                         accept="image/*"

@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react"
 import Navbar from "./components/Navbar"
 import Footer from "./components/Footer"
+import LoadingSpinner from "./components/LoadingSpinner"
 import Home from "./pages/Home"
 import Faculties from "./pages/Faculties"
 import Faculty from "./pages/Faculty"
+import Department from "./pages/Department"
 import Teachers from "./pages/Teachers"
 import Teacher from "./pages/Teacher"
 import AdminLogin from "./pages/AdminLogin"
@@ -21,6 +23,8 @@ const getPathForPage = (page, id) => {
       return "/teachers"
     case "faculty":
       return id ? `/faculty/${id}` : "/faculties"
+    case "department":
+      return id ? `/department/${id}` : "/faculties"
     case "teacher":
       return id ? `/teacher/${id}` : "/teachers"
     case "admin":
@@ -39,6 +43,11 @@ const getStateFromPath = (path, isAdmin) => {
   if (normalizedPath.startsWith("/faculty/")) {
     const [, , facultyId] = normalizedPath.split("/")
     return { page: "faculty", id: facultyId ? Number(facultyId) : null }
+  }
+
+  if (normalizedPath.startsWith("/department/")) {
+    const [, , departmentId] = normalizedPath.split("/")
+    return { page: "department", id: departmentId ? Number(departmentId) : null }
   }
 
   if (normalizedPath.startsWith("/teacher/")) {
@@ -62,6 +71,7 @@ function App() {
   const [currentPage, setCurrentPage] = useState("home")
   const [isAdmin, setIsAdmin] = useState(false)
   const [selectedId, setSelectedId] = useState(null)
+  const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -98,15 +108,21 @@ function App() {
   }
 
   const navigate = (page, id = null) => {
-    setCurrentPage(page)
-    setSelectedId(id)
+    setIsLoading(true)
+    
+    setTimeout(() => {
+      setCurrentPage(page)
+      setSelectedId(id)
 
-    if (typeof window !== "undefined") {
-      const nextPath = getPathForPage(page, id)
-      if (window.location.pathname !== nextPath) {
-        window.history.pushState(null, "", nextPath)
+      if (typeof window !== "undefined") {
+        const nextPath = getPathForPage(page, id)
+        if (window.location.pathname !== nextPath) {
+          window.history.pushState(null, "", nextPath)
+        }
       }
-    }
+      
+      setTimeout(() => setIsLoading(false), 300)
+    }, 200)
   }
 
   const showNavbar = currentPage !== "admin" && currentPage !== "admin-login"
@@ -114,6 +130,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
+      {isLoading && <LoadingSpinner />}
       {showNavbar && (
         <Navbar currentPage={currentPage} navigate={navigate} isAdmin={isAdmin} onLogout={handleLogout} />
       )}
@@ -121,6 +138,7 @@ function App() {
         {currentPage === "home" && <Home navigate={navigate} />}
         {currentPage === "faculties" && <Faculties navigate={navigate} />}
         {currentPage === "faculty" && <Faculty id={selectedId} navigate={navigate} />}
+        {currentPage === "department" && <Department id={selectedId} navigate={navigate} />}
         {currentPage === "teachers" && <Teachers navigate={navigate} />}
         {currentPage === "teacher" && <Teacher id={selectedId} navigate={navigate} />}
         {currentPage === "admin-login" && !isAdmin && <AdminLogin navigate={navigate} setIsAdmin={setIsAdmin} />}
