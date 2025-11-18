@@ -1,10 +1,12 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import { Search } from "lucide-react"
 import { mockData } from "../data/mockData"
 
 export default function Department({ id, navigate }) {
   const departmentId = Number(id)
+  const [searchTerm, setSearchTerm] = useState("")
 
   const { department, teachers, departmentHead } = useMemo(() => {
     const dept = mockData.departments.find((d) => Number(d.id) === departmentId)
@@ -52,6 +54,21 @@ export default function Department({ id, navigate }) {
         <h2 className="text-2xl font-semibold text-slate-800 mb-4">
           O'qituvchilar ({teachers.length})
         </h2>
+        <div className="flex gap-3 items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Kafedra qidirish..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 border-2 border-blue-500 rounded-full focus:outline-none focus:border-blue-600"
+            />
+          </div>
+          <button className="px-8 py-3 border-2 border-blue-600 text-blue-600 rounded-full hover:bg-blue-600 hover:text-white transition-colors whitespace-nowrap">
+            Qidirish
+          </button>
+        </div>
       </div>
 
       {teachers.length === 0 ? (

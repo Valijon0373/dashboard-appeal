@@ -1,6 +1,6 @@
 "use client"
 
-import { Instagram, Send, Youtube } from "lucide-react"
+import { Instagram, Send, Youtube, Facebook } from "lucide-react"
 
 export default function Footer({ isHome }) {
   const isHomePage = isHome
@@ -21,14 +21,17 @@ export default function Footer({ isHome }) {
     <footer className={`mt-12 ${footerBg}`}>
       <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col items-center justify-center gap-4">
         <div className="flex items-center justify-center gap-4">
-          <a href="#" aria-label="Instagram" className={iconWrapper}>
-            <Instagram className={`h-7 w-7 ${isHomePage ? "text-white" : "text-slate-700"}`} />
-          </a>
           <a href="#" aria-label="Telegram" className={iconWrapper}>
             <Send className={`h-7 w-7 ${isHomePage ? "text-white" : "text-slate-700"}`} />
           </a>
+          <a href="#" aria-label="Instagram" className={iconWrapper}>
+            <Instagram className={`h-7 w-7 ${isHomePage ? "text-white" : "text-slate-700"}`} />
+          </a>
           <a href="#" aria-label="YouTube" className={iconWrapper}>
             <Youtube className={`h-7 w-7 ${isHomePage ? "text-white" : "text-slate-700"}`} />
+          </a>
+          <a href="#" aria-label="Facebook" className={iconWrapper}>
+            <Facebook className={`h-7 w-7 ${isHomePage ? "text-white" : "text-slate-700"}`} />
           </a>
         </div>
         <p className={`text-sm text-center tracking-wide ${textColor}`}>

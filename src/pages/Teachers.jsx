@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { Search } from "lucide-react"
 import { mockData } from "../data/mockData"
 
 export default function Teachers({ navigate }) {
@@ -15,16 +16,23 @@ export default function Teachers({ navigate }) {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-slate-900 mb-8">O'qituvchilar</h1>
-
       <div className="mb-8">
-        <input
-          type="text"
-          placeholder="O'qituvchi izlash..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-blue-500"
-        />
+        <h1 className="text-3xl font-bold text-slate-900 mb-6">O'qituvchilar</h1>
+        <div className="flex gap-3 items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="O'qituvchi izlash..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 border-2 border-blue-500 rounded-full focus:outline-none focus:border-blue-600"
+            />
+          </div>
+          <button className="px-8 py-3 border-2 border-blue-600 text-blue-600 rounded-full hover:bg-blue-600 hover:text-white transition-colors whitespace-nowrap">
+            Qidirish
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
