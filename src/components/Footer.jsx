@@ -19,25 +19,25 @@ export default function Footer({ isHome }) {
 
   return (
     <footer className={`mt-12 ${footerBg}`}>
-      <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col items-center justify-center gap-4">
-        <div className="flex items-center justify-center gap-4">
-          <a href="#" aria-label="Telegram" className={iconWrapper}>
-            <Send className={`h-7 w-7 ${isHomePage ? "text-white" : "text-slate-700"}`} />
-          </a>
-          <a href="#" aria-label="Instagram" className={iconWrapper}>
-            <Instagram className={`h-7 w-7 ${isHomePage ? "text-white" : "text-slate-700"}`} />
-          </a>
-          <a href="#" aria-label="YouTube" className={iconWrapper}>
-            <Youtube className={`h-7 w-7 ${isHomePage ? "text-white" : "text-slate-700"}`} />
-          </a>
-          <a href="#" aria-label="Facebook" className={iconWrapper}>
-            <Facebook className={`h-7 w-7 ${isHomePage ? "text-white" : "text-slate-700"}`} />
-          </a>
-        </div>
-        <p className={`text-sm text-center tracking-wide ${textColor}`}>
-          UrSPI | RRTM Jamosi | 2025
-        </p>
+    <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col items-center justify-center gap-4">
+      <div className="flex items-center justify-center gap-4">
+        <a href="https://t.me/UrDPI_UZ" aria-label="Telegram" className={iconWrapper}>
+          <Send className={`h-7 w-7 ${isHomePage ? "text-white" : "text-slate-700"}`} />
+        </a>
+        <a href="https://www.instagram.com/urspi.uz?igsh=b3Bwc2g0YWoxYnZh" aria-label="Instagram" className={iconWrapper}>
+          <Instagram className={`h-7 w-7 ${isHomePage ? "text-white" : "text-slate-700"}`} />
+        </a>
+        <a href="https://www.youtube.com/@urspiurspi" aria-label="YouTube" className={iconWrapper}>
+          <Youtube className={`h-7 w-7 ${isHomePage ? "text-white" : "text-slate-700"}`} />
+        </a>
+        <a href="https://www.facebook.com/people/Urganch-Davlat-Pedagogika-Instituti/pfbid0bPNZR2Wy86C9X3wdZFFYaGfzuShapjc1h92dUG1r324CAopcCRSZrKzXCq4ZnEkEl/?mibextid=LQQJ4d" aria-label="Facebook" className={iconWrapper}>
+          <Facebook className={`h-7 w-7 ${isHomePage ? "text-white" : "text-slate-700"}`} />
+        </a>
       </div>
+      <a href="https://t.me/Val1jon_0373" className={`text-sm text-center tracking-wide ${textColor}`}>
+        UrSPI | RRTM Jamosi | 2025
+      </a>
+    </div>
     </footer>
   )
 }

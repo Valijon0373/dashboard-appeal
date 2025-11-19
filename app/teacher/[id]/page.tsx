@@ -72,7 +72,7 @@ export default function TeacherPage() {
       }
 
       // Fetch reviews
-      const reviewsResponse = await fetch(`/api/reviews?teacher_id=${teacherId}`)
+      const reviewsResponse = await fetch(`/api/reviews?teacher_id=${teacherId}&status=active`)
       const reviewsData = await reviewsResponse.json()
       setReviews(reviewsData)
 

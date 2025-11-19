@@ -53,7 +53,7 @@ const getQrCodeSrc = (teacher) => {
 
 export default function TeacherProfile({ teacher, onBack, layout = "default" }) {
   const [reviews, setReviews] = useState(() =>
-    mockData.reviews.filter((review) => Number(review.teacherId) === Number(teacher.id)),
+    mockData.reviews.filter((review) => Number(review.teacherId) === Number(teacher.id) && review.isActive !== false),
   )
   const [formState, setFormState] = useState({
     studentName: "",
@@ -62,6 +62,8 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
     scores: createDefaultScores(),
   })
   const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [showIdentityWarning, setShowIdentityWarning] = useState(false)
+  const [showAnonymousInfoModal, setShowAnonymousInfoModal] = useState(false)
 
   const averages = useMemo(() => computeCategoryAverages(reviews), [reviews])
   const totalReviews = reviews.length
@@ -81,6 +83,11 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
     event.preventDefault()
     if (!formState.comment.trim()) {
       alert("Iltimos, izoh qoldiring.")
+      return
+    }
+
+    if (!formState.studentName.trim() && !formState.anonymous) {
+      setShowIdentityWarning(true)
       return
     }
 
@@ -122,6 +129,33 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
 
   return (
     <div className="space-y-8">
+      {/* Identity Warning Modal */}
+      {showIdentityWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg p-8 max-w-sm mx-4 text-center shadow-xl relative">
+            <button
+              onClick={() => setShowIdentityWarning(false)}
+              className="absolute top-3 right-3 text-slate-500 hover:text-slate-700 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 rounded-full bg-yellow-100 text-yellow-600 flex items-center justify-center text-3xl font-bold">
+                !
+              </div>
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Ma'lumot talab qilinadi</h3>
+            <p className="text-slate-600 mb-6">Iltimos, ismingizni kiriting yoki “Anonim qoldirish” tugmasini tanlang.</p>
+            <button
+              onClick={() => setShowIdentityWarning(false)}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+            >
+              Tushunarli
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Success Modal */}
       {showSuccessModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
@@ -137,6 +171,68 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
             </div>
             <h3 className="text-xl font-bold text-slate-900 mb-2">Muvaffaqiyatli Jo'natildi</h3>
             <p className="text-slate-600">Sharhingiz muvaffaqiyatli yuborildi!</p>
+          </div>
+        </div>
+      )}
+
+      {/* Anonymous Info Modal */}
+      {showAnonymousInfoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full shadow-xl relative max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setShowAnonymousInfoModal(false)}
+              className="absolute top-3 right-3 text-slate-500 hover:text-slate-700 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <h3 className="text-xl font-bold text-slate-900 mb-4 text-center">Hurmatli talabalar!</h3>
+            <div className="text-slate-700 space-y-4 text-sm text-justify">
+              <p>
+                Ushbu so‘rovnoma anonim tarzda o‘tkazilmoqda va siz bildirgan fikrlar o‘qituvchilar faoliyatini baholash,
+                ta’lim jarayonini yanada yaxshilash hamda o‘quv sifatini oshirishga xizmat qiladi. Sizning har bir
+                mulohazangiz biz uchun juda muhim.
+              </p>
+              <p className="font-semibold">Shu bilan birga, quyidagi qoidalarga qat’iy amal qilishingizni so‘raymiz:</p>
+              <ul className="list-disc pl-5 space-y-2">
+                <li>
+                  Haqoratli, mensimaslik, kamsitish, kulgi va shaxsga tegishli salbiy izohlar qoldirmang. Bunday mazmundagi
+                  sharhlar moderatsiya tomonidan rad etiladi va hisobga olinmaydi.
+                </li>
+                <li>
+                  Fikrlaringizni madaniyatli, hurmat asosida va konstruktiv shaklda ifoda eting. Tanqid bo‘lsa ham, u asosli,
+                  ma’noli va xolis bo‘lishi kerak.
+                </li>
+                <li>
+                  Baholash jarayonida shaxsiy adovat, hissiy holat yoki vaziyatdan kelib chiqib noto‘g‘ri xulosa berishdan
+                  saqlaning. Iltimos, o‘qituvchilarni haqiqiy dars jarayoni, munosabati va pedagogik faoliyatiga asoslanib
+                  baholang.
+                </li>
+              </ul>
+              <p>
+                So‘rovnoma natijalari ta’lim sifatini oshirishga xizmat qiladi. Shuning uchun har bir javobingiz vijdonan,
+                xolis va mas’uliyat bilan yozilishi juda muhim.
+              </p>
+              <p>
+                Izohingizni yozayotganda unutmaying: sizning fikringiz, takliflaringiz va mulohazalaringiz o‘quv jarayonini
+                yanada yaxshilashga yordam beradi. Shu boisdan iloji boricha aniq, tushunarli va foydali fikr bildiring.
+              </p>
+              <p>
+                Sizdan hurmat, odob va adolat tamoyillariga amal qilgan holda fikr qoldirishingiz so‘raladi.
+              </p>
+              <p className="italic text-center font-medium">
+                Yaxshi niyatda bildirilgan xolis fikrlar – o‘qituvchi va talaba o‘rtasidagi o‘zaro hurmat va ta’lim sifati
+                yuksalishining asosidir.
+              </p>
+              <p className="text-center font-bold mt-4">Rahmat!</p>
+            </div>
+            <div className="mt-6 flex justify-center">
+              <button
+                onClick={() => setShowAnonymousInfoModal(false)}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+              >
+                Tushunarli
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -243,7 +339,13 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
                 id={`anonymous-${teacher.id}`}
                 type="checkbox"
                 checked={formState.anonymous}
-                onChange={(event) => setFormState((prev) => ({ ...prev, anonymous: event.target.checked }))}
+                onChange={(event) => {
+                  const isChecked = event.target.checked
+                  setFormState((prev) => ({ ...prev, anonymous: isChecked }))
+                  if (isChecked) {
+                    setShowAnonymousInfoModal(true)
+                  }
+                }}
                 className="w-4 h-4 text-blue-600 border-slate-300 rounded"
               />
               <label htmlFor={`anonymous-${teacher.id}`} className="text-sm text-slate-600">

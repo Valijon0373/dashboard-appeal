@@ -37,7 +37,7 @@ export default function Teachers({ navigate }) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filtered.map((teacher) => {
-          const reviews = mockData.reviews.filter((r) => r.teacherId === teacher.id)
+          const reviews = mockData.reviews.filter((r) => r.teacherId === teacher.id && r.isActive !== false)
           const avgRating =
             reviews.length > 0
               ? (

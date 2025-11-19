@@ -139,6 +139,7 @@ export default function Home({ navigate }) {
               <h2 className="text-xl font-bold text-slate-900 mb-4">So'nggi Sharhlar</h2>
               <div className="space-y-4">
                 {mockData.reviews
+                  .filter((r) => r.isActive !== false)
                   .slice(-3)
                   .reverse()
                   .map((review, i) => (
@@ -211,7 +212,7 @@ export default function Home({ navigate }) {
               <div className="space-y-3">
                 {mockData.teachers
                   .map((t) => {
-                    const reviews = mockData.reviews.filter((r) => r.teacherId === t.id)
+                    const reviews = mockData.reviews.filter((r) => r.teacherId === t.id && r.isActive !== false)
                     const avg =
                       reviews.length > 0
                         ? (

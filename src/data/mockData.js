@@ -272,6 +272,7 @@ const normalizeReview = (review) => {
     scores,
     comment: review?.comment ?? "",
     date: review?.date ?? new Date().toISOString(),
+    isActive: review?.isActive ?? true,
   }
 }
 

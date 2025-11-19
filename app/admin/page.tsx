@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { createBrowserClient } from "@supabase/ssr"
 import { useToast } from "@/hooks/use-toast"
-import { LogOut, Moon, GraduationCap, Users, MessageSquare, Building2, Edit, Trash2 } from "lucide-react"
+import { LogOut, Moon, GraduationCap, Users, MessageSquare, Building2, Edit, Trash2, Eye } from "lucide-react"
+import Link from "next/link"
 import {
   Sidebar,
   SidebarContent,
@@ -25,6 +26,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { ChevronDown } from "lucide-react"
 
 interface Statistics {
   totalFaculties: number
@@ -45,6 +47,7 @@ interface Review {
   professional_knowledge: number
   approachability: number
   created_at: string
+  is_verified: boolean
 }
 
 export default function AdminPage() {
@@ -446,6 +449,63 @@ export default function AdminPage() {
       toast({
         title: "Xato!",
         description: "O'qituvchini qo'shishda xato yuz berdi",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleUpdateReviewStatus = async (reviewId: string, newStatus: boolean) => {
+    try {
+      const response = await fetch("/api/reviews", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: reviewId, is_verified: newStatus }),
+      })
+
+      if (!response.ok) throw new Error("Failed to update review status")
+
+      toast({
+        title: "Muvaffaqiyat!",
+        description: "Sharh statusi yangilandi",
+      })
+
+      // Update local state
+      setReviews(reviews.map((r) => (r.id === reviewId ? { ...r, is_verified: newStatus } : r)))
+    } catch (error) {
+      console.error("Error updating status:", error)
+      toast({
+        title: "Xato!",
+        description: "Statusni yangilashda xato yuz berdi",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleDeleteReview = async (reviewId: string) => {
+    if (!confirm("Bu sharhni o'chirib tashlamoqchimisiz?")) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/reviews?id=${reviewId}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) throw new Error("Failed to delete review")
+
+      toast({
+        title: "Muvaffaqiyat!",
+        description: "Sharh o'chirildi",
+      })
+
+      // Update local state
+      setReviews(reviews.filter((r) => r.id !== reviewId))
+      setStats((prev) => ({ ...prev, totalReviews: prev.totalReviews - 1 }))
+    } catch (error) {
+      console.error("Error deleting review:", error)
+      toast({
+        title: "Xato!",
+        description: "Sharhni o'chirishda xato yuz berdi",
         variant: "destructive",
       })
     }
@@ -1097,9 +1157,42 @@ export default function AdminPage() {
                                       | {new Date(review.created_at).toLocaleTimeString("uz-UZ")}
                                     </p>
                                   </div>
-                                  <div className="flex items-center gap-2 bg-yellow-50 px-3 py-1 rounded-full">
-                                    <span className="text-2xl">⭐</span>
-                                    <span className="font-bold text-yellow-700">{review.rating}/5</span>
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-1 bg-yellow-50 px-2 py-1 rounded-full mr-2">
+                                      <span className="text-sm">⭐</span>
+                                      <span className="font-bold text-yellow-700 text-sm">{review.rating}/5</span>
+                                    </div>
+
+                                    <div className="relative">
+                                      <select
+                                        className={`appearance-none h-8 pl-3 pr-8 rounded-md border text-xs font-medium cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 ${
+                                          review.is_verified
+                                            ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                                            : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+                                        }`}
+                                        value={review.is_verified ? "active" : "inactive"}
+                                        onChange={(e) => handleUpdateReviewStatus(review.id, e.target.value === "active")}
+                                      >
+                                        <option value="active">Status: Faol</option>
+                                        <option value="inactive">Status: Faol emas</option>
+                                      </select>
+                                      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 opacity-50 pointer-events-none" />
+                                    </div>
+
+                                    <Button variant="outline" size="icon" className="h-8 w-8" asChild>
+                                      <Link href={`/teacher/${review.teacher_id}`} target="_blank">
+                                        <Eye className="h-4 w-4" />
+                                      </Link>
+                                    </Button>
+
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      className="h-8 w-8 text-destructive hover:text-destructive"
+                                      onClick={() => handleDeleteReview(review.id)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
                                   </div>
                                 </div>
 
