@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build",
-    "dev": "vite",
+    "build": "next build",
+    "dev": "next vite",
+    "start": "next start",
     "preview": "vite preview"
   },
   "dependencies": {
