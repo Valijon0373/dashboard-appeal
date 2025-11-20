@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import logo from "../bg/urspi_new.png"
 
 export default function AdminLogin({ navigate, setIsAdmin }) {
   const [credentials, setCredentials] = useState({
@@ -25,25 +26,28 @@ export default function AdminLogin({ navigate, setIsAdmin }) {
       setIsAdmin(true)
       navigate("admin")
     } else {
-      alert("Email yoki parol noto'g'ri!")
+      alert("Login yoki Parol noto'g'ri!")
     }
   }
 
   return (
     <div className="flex items-center justify-center min-h-screen">
       <div className="card w-full max-w-md">
-        <h1 className="text-3xl font-bold text-slate-900 mb-2">Admin Panelga Kirish</h1>
-        <p className="text-slate-600 mb-8">Admin foydalanuvchining hissobini kiriting</p>
+        <div className="text-center mb-8">
+          <img src={logo} alt="UrSPI Logo" className="h-24 mx-auto mb-4 object-contain" />
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">UrSPI Admin</h1>
+          <p className="text-slate-600">Admin foydalanuvchining hissobini kiriting</p>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-900 mb-1">Email</label>
+            <label className="block text-sm font-medium text-slate-900 mb-1">Login</label>
             <input
               type="email"
               value={credentials.email}
               onChange={(e) => setCredentials({ ...credentials, email: e.target.value })}
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-blue-500"
-              placeholder="admin@urspi.uz"
+              placeholder="Loginni kiriting"
             />
           </div>
           <div>
@@ -60,12 +64,11 @@ export default function AdminLogin({ navigate, setIsAdmin }) {
             Kirish
           </button>
         </form>
-
+{/* 
         <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <p className="text-sm text-slate-600">Test hisobini ishlatish:</p>
-          <p className="text-sm font-medium text-slate-900">Email: {adminEmail}</p>
+          <p className="text-sm font-medium text-slate-900">Login: {adminEmail}</p>
           <p className="text-sm font-medium text-slate-900">Parol: {adminPassword}</p>
-        </div>
+        </div> */}
       </div>
     </div>
   )

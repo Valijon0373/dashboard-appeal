@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Footer } from "@/components/footer"
+import { MobileNav } from "@/components/mobile-nav"
 
 interface Faculty {
   id: string
@@ -72,31 +73,27 @@ export default function HomePage() {
         <header className="border-b border-border bg-card">
           <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-4xl font-bold text-foreground">UrSPI</h1>
-                <p className="mt-2 text-muted-foreground">O'qituvchi va katedra reyting tizimi</p>
+              <div className="flex items-center gap-12">
+                <div>
+                  <h1 className="text-4xl font-bold text-foreground">UrSPI</h1>
+                  <p className="mt-2 text-muted-foreground">O'qituvchi va katedra reyting tizimi</p>
+                </div>
+                <div className="hidden md:flex gap-4">
+                  <Link href="/faculties">
+                    <Button variant="ghost" className="text-foreground text-base font-medium">Fakultetlar</Button>
+                  </Link>
+                  <Link href="/teachers">
+                    <Button variant="ghost" className="text-foreground text-base font-medium">O'qituvchilar</Button>
+                  </Link>
+                  <Link href="/setup">
+                    <Button variant="ghost" className="text-foreground text-base font-medium">Setup</Button>
+                  </Link>
+                </div>
               </div>
-
+              <MobileNav />
             </div>
           </div>
         </header>
-
-        {/* Navigation */}
-        <nav className="border-b border-border bg-card/50">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="flex gap-4 py-4">
-              <Link href="/faculties">
-                <Button variant="ghost">Fakultetlar</Button>
-              </Link>
-              <Link href="/teachers">
-                <Button variant="ghost">O'qituvchilar</Button>
-              </Link>
-              <Link href="/setup">
-                <Button variant="ghost">Setup</Button>
-              </Link>
-            </div>
-          </div>
-        </nav>
 
         {/* Hero Stats */}
         <div className="border-b border-border bg-card/30 py-8">

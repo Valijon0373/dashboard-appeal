@@ -63,12 +63,12 @@ export default function AdminLoginPage() {
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium">
-                Email
+                Login
               </label>
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@urspi.uz"
+                placeholder="Login"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

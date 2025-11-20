@@ -93,11 +93,17 @@ export default function Home({ navigate }) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-        <div className="card rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md shadow-lg hover:bg-white/15 transition-colors">
+        <div 
+          onClick={() => navigate("faculties")}
+          className="card rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md shadow-lg hover:bg-white/15 transition-colors cursor-pointer"
+        >
           <h3 className="text-sm font-medium mb-2 text-white/80">Fakultetlar</h3>
           <p className="text-4xl font-bold text-blue-200">{facultiesCount}</p>
         </div>
-        <div className="card rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md shadow-lg hover:bg-white/15 transition-colors">
+        <div 
+          onClick={() => navigate("teachers")}
+          className="card rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md shadow-lg hover:bg-white/15 transition-colors cursor-pointer"
+        >
           <h3 className="text-sm font-medium mb-2 text-white/80">O'qituvchilar</h3>
           <p className="text-4xl font-bold text-green-200">{teachersCount}</p>
         </div>
@@ -140,8 +146,7 @@ export default function Home({ navigate }) {
               <div className="space-y-4">
                 {mockData.reviews
                   .filter((r) => r.isActive !== false)
-                  .slice(-3)
-                  .reverse()
+                  .slice(0, 5)
                   .map((review, i) => (
                     <div 
                       key={i} 

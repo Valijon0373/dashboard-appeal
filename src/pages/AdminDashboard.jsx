@@ -98,6 +98,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
   const [imagePreview, setImagePreview] = useState(null)
   const [editingTeacherId, setEditingTeacherId] = useState(null)
   const [showTeacherModal, setShowTeacherModal] = useState(false)
+  const [viewTeacher, setViewTeacher] = useState(null)
   const [teachers, setTeachers] = useState(mockData.teachers)
   const [reviews, setReviews] = useState(mockData.reviews)
   const [teacherSearchQuery, setTeacherSearchQuery] = useState("")
@@ -119,6 +120,44 @@ export default function AdminDashboard({ onLogout, navigate }) {
   const [viewReview, setViewReview] = useState(null)
   const [successMessage, setSuccessMessage] = useState("")
   const successTimeoutRef = useRef(null)
+
+  // Prevent body scroll when any modal is open
+  useEffect(() => {
+    const isAnyModalOpen =
+      showFacultyForm ||
+      viewFaculty ||
+      showDeleteConfirm ||
+      showDeleteTeacherConfirm ||
+      showTeacherModal ||
+      viewTeacher ||
+      showDepartmentForm ||
+      showDeleteDepartmentConfirm ||
+      viewDepartment ||
+      showDeleteReviewConfirm ||
+      viewReview
+
+    if (isAnyModalOpen) {
+      document.body.style.overflow = "hidden"
+    } else {
+      document.body.style.overflow = "unset"
+    }
+    
+    return () => {
+      document.body.style.overflow = "unset"
+    }
+  }, [
+    showFacultyForm,
+    viewFaculty,
+    showDeleteConfirm,
+    showDeleteTeacherConfirm,
+    showTeacherModal,
+    viewTeacher,
+    showDepartmentForm,
+    showDeleteDepartmentConfirm,
+    viewDepartment,
+    showDeleteReviewConfirm,
+    viewReview,
+  ])
 
   const showSuccess = (message) => {
     setSuccessMessage(message)
@@ -332,6 +371,10 @@ export default function AdminDashboard({ onLogout, navigate }) {
 
   const handleViewFaculty = (faculty) => {
     setViewFaculty(faculty)
+  }
+
+  const handleViewTeacher = (teacher) => {
+    setViewTeacher(teacher)
   }
 
   const handleAddDepartment = (event) => {
@@ -1725,6 +1768,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                             : "bg-white border-slate-300 text-slate-900"
                         }`}
                         placeholder="Masalan: Kompyuter tamoyillari"
+                        maxLength={40}
                       />
                     </div>
                     <div>
@@ -2053,9 +2097,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                             <div className="flex gap-2 mt-6">
                               <button
                                 type="button"
-                                onClick={() => {
-                                  alert(`O'qituvchi: ${teacher.name}\nLavozim: ${teacher.title}\nKafedra: ${teacher.department}\nEmail: ${teacher.email || "N/A"}\nTelefon: ${teacher.phone || "N/A"}\nTajriba: ${teacher.experience || "N/A"}\nReyting: ${metrics.overall.toFixed(1)} / 5\nSharhlar: ${metrics.total} ta`) 
-                                }}
+                                onClick={() => handleViewTeacher(teacher)}
                                 className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border transition-all duration-200 text-blue-500 border-blue-500/30 hover:bg-blue-500/10 ${
                                   isDarkMode ? "bg-[#0e1a22]" : "bg-white"
                                 }`}
@@ -2091,6 +2133,88 @@ export default function AdminDashboard({ onLogout, navigate }) {
                   </div>
                 </div>
               </div>
+              
+              {viewTeacher && (
+                <div
+                  className="fixed inset-0 bg-black bg-opacity-0 z-50 flex items-center justify-center p-4"
+                  onClick={() => setViewTeacher(null)}
+                  style={{
+                    animation: 'fadeIn 0.3s ease-in-out forwards'
+                  }}
+                >
+                  <div
+                    className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-xl p-6 w-full max-w-md relative max-h-[90vh] overflow-y-auto`}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      animation: 'slideUp 0.3s ease-out forwards'
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <h2
+                        className={`text-xl font-bold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
+                      >
+                        O'qituvchi ma'lumotlari
+                      </h2>
+                      <button
+                        onClick={() => setViewTeacher(null)}
+                        className={`transition-colors ${isDarkMode ? "text-[#8b9ba8] hover:text-white" : "text-slate-600 hover:text-slate-900"}`}
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                    
+                    <div className="flex flex-col items-center mb-6">
+                      <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-[#00d4aa] mb-3">
+                        {viewTeacher.image ? (
+                          <img src={viewTeacher.image} alt={viewTeacher.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className={`w-full h-full flex items-center justify-center ${isDarkMode ? "bg-[#1a2d3a]" : "bg-gray-200"}`}>
+                            <Users className={`w-12 h-12 ${isDarkMode ? "text-[#8b9ba8]" : "text-gray-400"}`} />
+                          </div>
+                        )}
+                      </div>
+                      <h3 className={`text-lg font-bold text-center ${isDarkMode ? "text-white" : "text-slate-900"}`}>{viewTeacher.name}</h3>
+                      <p className={`text-sm ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>{viewTeacher.title}</p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>Kafedra:</p>
+                        <p className={`font-medium ${isDarkMode ? "text-white" : "text-slate-900"}`}>{viewTeacher.department}</p>
+                      </div>
+                      <div>
+                        <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>Mutaxassislik:</p>
+                        <p className={`font-medium ${isDarkMode ? "text-white" : "text-slate-900"}`}>{viewTeacher.specialization || "-"}</p>
+                      </div>
+                      <div>
+                        <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>Email:</p>
+                        <p className={`font-medium ${isDarkMode ? "text-white" : "text-slate-900"}`}>{viewTeacher.email}</p>
+                      </div>
+                      <div>
+                        <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>Telefon:</p>
+                        <p className={`font-medium ${isDarkMode ? "text-white" : "text-slate-900"}`}>{viewTeacher.phone}</p>
+                      </div>
+                      <div>
+                        <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>Tajriba:</p>
+                        <p className={`font-medium ${isDarkMode ? "text-white" : "text-slate-900"}`}>{viewTeacher.experience || "-"}</p>
+                      </div>
+                       <div>
+                        <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>Reyting:</p>
+                        <div className="flex items-center gap-2">
+                           <span className="text-yellow-400 font-bold">★ {calculateTeacherMetrics(viewTeacher.id, reviews).overall.toFixed(1)}</span>
+                           <span className={`text-sm ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>({calculateTeacherMetrics(viewTeacher.id, reviews).total} ta sharh)</span>
+                        </div>
+                      </div>
+                      {viewTeacher.bio && (
+                          <div>
+                              <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>Bio:</p>
+                              <p className={`text-sm ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}>{viewTeacher.bio}</p>
+                          </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           )}
 

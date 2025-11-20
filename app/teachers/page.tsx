@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input" 
+import { MobileNav } from "@/components/mobile-nav"
 
 interface Teacher {
   id: string
@@ -67,11 +68,14 @@ export default function TeachersPage() {
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <Link href="/">
-          <Button variant="ghost" className="mb-8">
-            ← Orqaga
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2 mb-8">
+          <MobileNav />
+          <Link href="/">
+            <Button variant="ghost">
+              ← Orqaga
+            </Button>
+          </Link>
+        </div>
 
         <h1 className="mb-8 text-3xl font-bold">Barcha O'qituvchilar</h1>
 

@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ChevronRight, Search, Plus } from "lucide-react"
+import { MobileNav } from "@/components/mobile-nav"
 
 interface Faculty {
   id: string
@@ -57,11 +58,14 @@ export default function FacultiesPage() {
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-12">
-          <Link href="/">
-            <Button variant="ghost" className="mb-6">
-              ← Orqaga
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2 mb-6">
+            <MobileNav />
+            <Link href="/">
+              <Button variant="ghost">
+                ← Orqaga
+              </Button>
+            </Link>
+          </div>
           <div className="space-y-4">
             <div className="space-y-2">
               <h1 className="text-4xl font-bold text-foreground">Bizning Fakultetlar</h1>

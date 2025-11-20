@@ -384,7 +384,7 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
             />
           </div>
 
-          <button type="submit" className="px-6 py-3 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition">
+          <button type="submit" className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
             Sharhni yuborish
           </button>
         </form>
