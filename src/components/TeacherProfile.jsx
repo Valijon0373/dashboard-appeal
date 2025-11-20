@@ -63,6 +63,7 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
   })
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [showIdentityWarning, setShowIdentityWarning] = useState(false)
+  const [showCommentWarning, setShowCommentWarning] = useState(false)
   const [showAnonymousInfoModal, setShowAnonymousInfoModal] = useState(false)
 
   const averages = useMemo(() => computeCategoryAverages(reviews), [reviews])
@@ -82,7 +83,7 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
   const handleSubmit = (event) => {
     event.preventDefault()
     if (!formState.comment.trim()) {
-      alert("Iltimos, izoh qoldiring.")
+      setShowCommentWarning(true)
       return
     }
 
@@ -148,6 +149,33 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
             <p className="text-slate-600 mb-6">Iltimos, ismingizni kiriting yoki “Anonim qoldirish” tugmasini tanlang.</p>
             <button
               onClick={() => setShowIdentityWarning(false)}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+            >
+              Tushunarli
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Comment Warning Modal */}
+      {showCommentWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg p-8 max-w-sm mx-4 text-center shadow-xl relative">
+            <button
+              onClick={() => setShowCommentWarning(false)}
+              className="absolute top-3 right-3 text-slate-500 hover:text-slate-700 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 rounded-full bg-yellow-100 text-yellow-600 flex items-center justify-center text-3xl font-bold">
+                !
+              </div>
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Izoh talab qilinadi</h3>
+            <p className="text-slate-600 mb-6">Iltimos, o'qituvchi faoliyati haqida izoh qoldiring.</p>
+            <button
+              onClick={() => setShowCommentWarning(false)}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
             >
               Tushunarli
