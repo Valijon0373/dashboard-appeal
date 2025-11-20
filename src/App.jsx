@@ -77,7 +77,14 @@ function App() {
     if (typeof window === "undefined") return
 
     const adminSession = localStorage.getItem("adminSession")
-    const admin = Boolean(adminSession)
+    let admin = Boolean(adminSession)
+
+    // Always force login when accessing /admin directly
+    if (window.location.pathname === "/admin" || window.location.pathname === "/admin/") {
+      localStorage.removeItem("adminSession")
+      admin = false
+    }
+
     setIsAdmin(admin)
 
     const { page, id } = getStateFromPath(window.location.pathname, admin)
