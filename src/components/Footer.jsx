@@ -35,7 +35,7 @@ export default function Footer({ isHome }) {
         </a>
       </div>
       <a href="https://t.me/Val1jon_0373" className={`text-sm text-center tracking-wide ${textColor}`}>
-        UrSPI | RRTM Jamosi | 2025
+        UrSPI | RTTM Jamosi | 2025
       </a>
     </div>
     </footer>
