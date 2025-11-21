@@ -80,10 +80,10 @@ function App() {
     let admin = Boolean(adminSession)
 
     // Always force login when accessing /admin directly
-    if (window.location.pathname === "/admin" || window.location.pathname === "/admin/") {
-      localStorage.removeItem("adminSession")
-      admin = false
-    }
+    // if (window.location.pathname === "/admin" || window.location.pathname === "/admin/") {
+    //   localStorage.removeItem("adminSession")
+    //   admin = false
+    // }
 
     setIsAdmin(admin)
 

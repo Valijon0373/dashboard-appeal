@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from "react"
-import { mockData } from "../data/mockData"
+import { supabase } from "../lib/supabase"
 import {
   LayoutDashboard,
   Users,
@@ -99,8 +99,11 @@ export default function AdminDashboard({ onLogout, navigate }) {
   const [editingTeacherId, setEditingTeacherId] = useState(null)
   const [showTeacherModal, setShowTeacherModal] = useState(false)
   const [viewTeacher, setViewTeacher] = useState(null)
-  const [teachers, setTeachers] = useState(mockData.teachers)
-  const [reviews, setReviews] = useState(mockData.reviews)
+  const [teachers, setTeachers] = useState([])
+  const [reviews, setReviews] = useState([])
+  const [faculties, setFaculties] = useState([])
+  const [departments, setDepartments] = useState([])
+  const [isLoadingData, setIsLoadingData] = useState(true)
   const [teacherSearchQuery, setTeacherSearchQuery] = useState("")
   const [teacherSearchTerm, setTeacherSearchTerm] = useState("")
   const [departmentSearchQuery, setDepartmentSearchQuery] = useState("")
@@ -159,6 +162,37 @@ export default function AdminDashboard({ onLogout, navigate }) {
     viewReview,
   ])
 
+  const fetchData = async () => {
+    try {
+      setIsLoadingData(true)
+      const [fRes, dRes, tRes, rRes] = await Promise.all([
+        supabase.from("faculties").select("*").order("id"),
+        supabase.from("departments").select("*").order("id"),
+        supabase.from("teachers").select("*").order("id"),
+        supabase.from("reviews").select("*").order("date", { ascending: false }),
+      ])
+
+      if (fRes.error) throw fRes.error
+      if (dRes.error) throw dRes.error
+      if (tRes.error) throw tRes.error
+      if (rRes.error) throw rRes.error
+
+      setFaculties(fRes.data)
+      setDepartments(dRes.data)
+      setTeachers(tRes.data)
+      setReviews(rRes.data)
+    } catch (error) {
+      console.error("Error fetching data:", error)
+      // alert("Ma'lumotlarni yuklashda xatolik yuz berdi!") 
+    } finally {
+      setIsLoadingData(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
   const showSuccess = (message) => {
     setSuccessMessage(message)
     if (successTimeoutRef.current) {
@@ -171,29 +205,35 @@ export default function AdminDashboard({ onLogout, navigate }) {
   }
 
   const resetTeacherForm = () => {
-    setTeacherForm(createInitialTeacherForm())
+    const nextId = Math.max(...teachers.map((t) => Number(t.id)), 0) + 1
+    const initialForm = createInitialTeacherForm()
+    initialForm.qrData = `https://feedback.urspi.uz/teacher/${nextId}`
+    
+    setTeacherForm(initialForm)
     setImagePreview(null)
     setEditingTeacherId(null)
     setShowTeacherModal(false)
   }
 
-  const persistData = (updatedTeachers, updatedReviews = reviews) => {
-    mockData.teachers = updatedTeachers
-    mockData.reviews = updatedReviews
-    localStorage.setItem(
-      "mockData",
-      JSON.stringify({
-        ...mockData,
-        teachers: updatedTeachers,
-        reviews: updatedReviews,
-      }),
-    )
-  }
+
+  // const persistData = (updatedTeachers, updatedReviews = reviews) => {
+  //   mockData.teachers = updatedTeachers
+  //   mockData.reviews = updatedReviews
+  //   localStorage.setItem(
+  //     "mockData",
+  //     JSON.stringify({
+  //       ...mockData,
+  //       teachers: updatedTeachers,
+  //       reviews: updatedReviews,
+  //     }),
+  //   )
+  // }
+
 
   const handleDownloadStatistics = () => {
     const data = teachers.map((teacher) => {
-      const department = mockData.departments.find((d) => d.id === Number(teacher.departmentId))
-      const faculty = department ? mockData.faculties.find((f) => f.id === Number(department.facultyId)) : null
+      const department = departments.find((d) => d.id === Number(teacher.departmentId))
+      const faculty = department ? faculties.find((f) => f.id === Number(department.facultyId)) : null
       const metrics = calculateTeacherMetrics(teacher.id, reviews)
       
       return {
@@ -233,8 +273,8 @@ export default function AdminDashboard({ onLogout, navigate }) {
 
   const stats = useMemo(
     () => ({
-      faculties: mockData.faculties.length,
-      departments: mockData.departments.length,
+      faculties: faculties.length,
+      departments: departments.length,
       teachers: teachers.length,
       reviews: reviews.length,
       avgRating:
@@ -242,7 +282,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
           ? (reviews.reduce((sum, review) => sum + (review.scores?.overall ?? review.rating ?? 0), 0) / reviews.length).toFixed(1)
           : "0.0",
     }),
-    [teachers.length, reviews],
+    [teachers.length, reviews, faculties.length, departments.length],
   )
 
   // Chart data for Pie Chart - Rating distribution
@@ -299,41 +339,39 @@ export default function AdminDashboard({ onLogout, navigate }) {
     }))
   }, [reviews])
 
-  const handleAddFaculty = (event) => {
+  const handleAddFaculty = async (event) => {
     event.preventDefault()
     if (!facultyForm.nameUz || !facultyForm.nameRu) {
       alert("Iltimos, barcha maydonlarni to'ldiring")
       return
     }
 
-    if (editingFacultyId) {
-      // Update existing faculty
-      const facultyIndex = mockData.faculties.findIndex((f) => f.id === editingFacultyId)
-      if (facultyIndex !== -1) {
-        mockData.faculties[facultyIndex] = {
-          ...mockData.faculties[facultyIndex],
-          ...facultyForm,
-        }
-        localStorage.setItem("mockData", JSON.stringify(mockData))
-        setFacultyForm({ nameUz: "", nameRu: "" })
-        setEditingFacultyId(null)
-        setShowFacultyForm(false)
+    try {
+      if (editingFacultyId) {
+        const { error } = await supabase
+          .from("faculties")
+          .update({ nameUz: facultyForm.nameUz, nameRu: facultyForm.nameRu })
+          .eq("id", editingFacultyId)
+        
+        if (error) throw error
         showSuccess("Fakultet muvaffaqiyatli yangilandi")
-        return
+      } else {
+        const { error } = await supabase
+          .from("faculties")
+          .insert([{ nameUz: facultyForm.nameUz, nameRu: facultyForm.nameRu }])
+        
+        if (error) throw error
+        showSuccess("Fakultet muvaffaqiyatli qo'shildi")
       }
+      
+      await fetchData()
+      setFacultyForm({ nameUz: "", nameRu: "" })
+      setEditingFacultyId(null)
+      setShowFacultyForm(false)
+    } catch (error) {
+      console.error("Error saving faculty:", error)
+      alert("Xatolik: " + (error.message || "Noma'lum xatolik"))
     }
-
-    const newFaculty = {
-      id: Math.max(...mockData.faculties.map((f) => f.id), 0) + 1,
-      ...facultyForm,
-    }
-
-    mockData.faculties.push(newFaculty)
-    localStorage.setItem("mockData", JSON.stringify(mockData))
-    setFacultyForm({ nameUz: "", nameRu: "" })
-    setShowFacultyForm(false)
-    showSuccess("Fakultet muvaffaqiyatli qo'shildi")
-    // State will update automatically, no need to reload
   }
 
   const handleEditFaculty = (faculty) => {
@@ -347,21 +385,28 @@ export default function AdminDashboard({ onLogout, navigate }) {
     setShowDeleteConfirm(true)
   }
 
-  const confirmDeleteFaculty = () => {
+  const confirmDeleteFaculty = async () => {
     if (!deleteConfirmId) return
 
-    mockData.faculties = mockData.faculties.filter((f) => f.id !== deleteConfirmId)
-    localStorage.setItem("mockData", JSON.stringify(mockData))
-    showSuccess("Fakultet muvaffaqiyatli o'chirildi")
-    
-    if (editingFacultyId === deleteConfirmId) {
-      setFacultyForm({ nameUz: "", nameRu: "" })
-      setEditingFacultyId(null)
-      setShowFacultyForm(false)
-    }
+    try {
+      const { error } = await supabase.from("faculties").delete().eq("id", deleteConfirmId)
+      if (error) throw error
 
-    setShowDeleteConfirm(false)
-    setDeleteConfirmId(null)
+      showSuccess("Fakultet muvaffaqiyatli o'chirildi")
+      await fetchData()
+      
+      if (editingFacultyId === deleteConfirmId) {
+        setFacultyForm({ nameUz: "", nameRu: "" })
+        setEditingFacultyId(null)
+        setShowFacultyForm(false)
+      }
+    } catch (error) {
+      console.error("Error deleting faculty:", error)
+      alert("Xatolik yuz berdi")
+    } finally {
+      setShowDeleteConfirm(false)
+      setDeleteConfirmId(null)
+    }
   }
 
   const cancelDeleteFaculty = () => {
@@ -377,42 +422,48 @@ export default function AdminDashboard({ onLogout, navigate }) {
     setViewTeacher(teacher)
   }
 
-  const handleAddDepartment = (event) => {
+  const handleAddDepartment = async (event) => {
     event.preventDefault()
     if (!departmentForm.nameUz || !departmentForm.nameRu || !departmentForm.facultyId) {
       alert("Iltimos, barcha maydonlarni to'ldiring")
       return
     }
 
-    if (editingDepartmentId) {
-      const index = mockData.departments.findIndex((d) => d.id === editingDepartmentId)
-      if (index !== -1) {
-        mockData.departments[index] = {
-          ...mockData.departments[index],
-          facultyId: Number.parseInt(departmentForm.facultyId),
-          nameUz: departmentForm.nameUz,
-          nameRu: departmentForm.nameRu,
-        }
-        localStorage.setItem("mockData", JSON.stringify(mockData))
+    try {
+      if (editingDepartmentId) {
+        const { error } = await supabase
+          .from("departments")
+          .update({
+            facultyId: Number.parseInt(departmentForm.facultyId),
+            nameUz: departmentForm.nameUz,
+            nameRu: departmentForm.nameRu,
+          })
+          .eq("id", editingDepartmentId)
+
+        if (error) throw error
         showSuccess("Kafedra muvaffaqiyatli yangilandi")
+      } else {
+        const { error } = await supabase
+          .from("departments")
+          .insert([{
+            facultyId: Number.parseInt(departmentForm.facultyId),
+            nameUz: departmentForm.nameUz,
+            nameRu: departmentForm.nameRu,
+            head: "",
+          }])
+        
+        if (error) throw error
+        showSuccess("Kafedra muvaffaqiyatli qo'shildi")
       }
-    } else {
-      const newDepartment = {
-        id: Math.max(...mockData.departments.map((d) => d.id), 0) + 1,
-        facultyId: Number.parseInt(departmentForm.facultyId),
-        nameUz: departmentForm.nameUz,
-        nameRu: departmentForm.nameRu,
-        head: "",
-      }
-
-      mockData.departments.push(newDepartment)
-      localStorage.setItem("mockData", JSON.stringify(mockData))
-      showSuccess("Kafedra muvaffaqiyatli qo'shildi")
+      
+      await fetchData()
+      setDepartmentFormState({ nameUz: "", nameRu: "", facultyId: "" })
+      setEditingDepartmentId(null)
+      setShowDepartmentForm(false)
+    } catch (error) {
+      console.error("Error saving department:", error)
+      alert("Xatolik yuz berdi")
     }
-
-    setDepartmentFormState({ nameUz: "", nameRu: "", facultyId: "" })
-    setEditingDepartmentId(null)
-    setShowDepartmentForm(false)
   }
 
   const handleViewDepartment = (department, faculty) => {
@@ -437,6 +488,23 @@ export default function AdminDashboard({ onLogout, navigate }) {
     setShowDeleteDepartmentConfirm(true)
   }
 
+  const confirmDeleteDepartment = async () => {
+    if (!deleteDepartmentId) return
+    try {
+      const { error } = await supabase.from("departments").delete().eq("id", deleteDepartmentId)
+      if (error) throw error
+      
+      showSuccess("Kafedra muvaffaqiyatli o'chirildi")
+      await fetchData()
+    } catch (error) {
+      console.error("Error deleting department:", error)
+      alert("Xatolik yuz berdi")
+    } finally {
+      setShowDeleteDepartmentConfirm(false)
+      setDeleteDepartmentId(null)
+    }
+  }
+
   const handleImageChange = (event) => {
     const file = event.target.files[0]
     if (file) {
@@ -448,7 +516,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
     }
   }
 
-  const handleAddOrUpdateTeacher = (event) => {
+  const handleAddOrUpdateTeacher = async (event) => {
     event.preventDefault()
     
     // Validate required fields
@@ -458,55 +526,44 @@ export default function AdminDashboard({ onLogout, navigate }) {
       return
     }
 
-    if (editingTeacherId) {
-      const updatedTeachers = teachers.map((teacher) =>
-        Number(teacher.id) === Number(editingTeacherId)
-          ? {
-              ...teacher,
-              name: teacherForm.name,
-              title: teacherForm.title || "O'qituvchi",
-              specialization: teacherForm.specialization || teacherForm.department,
-              departmentId: Number.parseInt(teacherForm.departmentId),
-              department: teacherForm.department,
-              email: teacherForm.email,
-              phone: teacherForm.phone,
-              experience: teacherForm.experience,
-              bio: teacherForm.bio,
-              qrData: teacherForm.qrData || teacherForm.email || teacherForm.name,
-              image: imagePreview || "",
-            }
-          : teacher,
-      )
+    try {
+      const teacherData = {
+        name: teacherForm.name,
+        title: teacherForm.title || "O'qituvchi",
+        specialization: teacherForm.specialization || teacherForm.department,
+        departmentId: Number.parseInt(teacherForm.departmentId),
+        email: teacherForm.email,
+        phone: teacherForm.phone,
+        experience: teacherForm.experience,
+        bio: teacherForm.bio,
+        qrData: teacherForm.qrData || teacherForm.email || teacherForm.name,
+        image: imagePreview || "",
+      }
 
-      setTeachers(updatedTeachers)
-      persistData(updatedTeachers)
-      showSuccess("O'qituvchi ma'lumotlari muvaffaqiyatli yangilandi")
+      if (editingTeacherId) {
+        const { error } = await supabase
+          .from("teachers")
+          .update(teacherData)
+          .eq("id", editingTeacherId)
+        
+        if (error) throw error
+        showSuccess("O'qituvchi ma'lumotlari muvaffaqiyatli yangilandi")
+      } else {
+        const { error } = await supabase
+          .from("teachers")
+          .insert([teacherData])
+        
+        if (error) throw error
+        showSuccess("O'qituvchi muvaffaqiyatli qo'shildi")
+      }
+
+      await fetchData()
       resetTeacherForm()
       setShowTeacherModal(false)
-      return
+    } catch (error) {
+      console.error("Error saving teacher:", error)
+      alert("Xatolik yuz berdi")
     }
-
-    const newTeacher = {
-      id: Math.max(...teachers.map((t) => t.id), 0) + 1,
-      name: teacherForm.name,
-      title: teacherForm.title || "O'qituvchi",
-      specialization: teacherForm.specialization || teacherForm.department,
-      departmentId: Number.parseInt(teacherForm.departmentId),
-      department: teacherForm.department,
-      email: teacherForm.email,
-      phone: teacherForm.phone,
-      experience: teacherForm.experience,
-      bio: teacherForm.bio,
-      qrData: teacherForm.qrData || teacherForm.email || teacherForm.name,
-      image: imagePreview || "",
-    }
-
-    const updatedTeachers = [...teachers, newTeacher]
-    setTeachers(updatedTeachers)
-    persistData(updatedTeachers)
-    showSuccess("O'qituvchi muvaffaqiyatli qo'shildi")
-    resetTeacherForm()
-    setShowTeacherModal(false)
   }
 
   const handleEditTeacher = (teacher) => {
@@ -537,25 +594,27 @@ export default function AdminDashboard({ onLogout, navigate }) {
     }
   }
 
-  const confirmDeleteTeacher = () => {
+  const confirmDeleteTeacher = async () => {
     if (!deleteTeacherId) return
 
-    const updatedTeachers = teachers.filter((teacher) => Number(teacher.id) !== Number(deleteTeacherId))
-    const updatedReviews = reviews.filter((review) => Number(review.teacherId) !== Number(deleteTeacherId))
+    try {
+      const { error } = await supabase.from("teachers").delete().eq("id", deleteTeacherId)
+      if (error) throw error
 
-    setTeachers(updatedTeachers)
-    setReviews(updatedReviews)
-    mockData.reviews = updatedReviews
-    persistData(updatedTeachers, updatedReviews)
-    showSuccess("O'qituvchi muvaffaqiyatli o'chirildi")
+      showSuccess("O'qituvchi muvaffaqiyatli o'chirildi")
+      await fetchData()
 
-    if (editingTeacherId && Number(editingTeacherId) === Number(deleteTeacherId)) {
-      resetTeacherForm()
+      if (editingTeacherId && Number(editingTeacherId) === Number(deleteTeacherId)) {
+        resetTeacherForm()
+      }
+    } catch (error) {
+      console.error("Error deleting teacher:", error)
+      alert("Xatolik yuz berdi")
+    } finally {
+      setShowDeleteTeacherConfirm(false)
+      setDeleteTeacherId(null)
+      setDeleteTeacherName("")
     }
-
-    setShowDeleteTeacherConfirm(false)
-    setDeleteTeacherId(null)
-    setDeleteTeacherName("")
   }
 
   const cancelDeleteTeacher = () => {
@@ -569,15 +628,22 @@ export default function AdminDashboard({ onLogout, navigate }) {
     setShowDeleteReviewConfirm(true)
   }
 
-  const confirmDeleteReview = () => {
+  const confirmDeleteReview = async () => {
     if (!deleteReviewId) return
 
-    const updatedReviews = reviews.filter((review) => review.id !== deleteReviewId)
-    setReviews(updatedReviews)
-    persistData(teachers, updatedReviews)
-    showSuccess("Sharh muvaffaqiyatli o'chirildi")
-    setShowDeleteReviewConfirm(false)
-    setDeleteReviewId(null)
+    try {
+      const { error } = await supabase.from("reviews").delete().eq("id", deleteReviewId)
+      if (error) throw error
+
+      showSuccess("Sharh muvaffaqiyatli o'chirildi")
+      await fetchData()
+    } catch (error) {
+      console.error("Error deleting review:", error)
+      alert("Xatolik yuz berdi")
+    } finally {
+      setShowDeleteReviewConfirm(false)
+      setDeleteReviewId(null)
+    }
   }
 
   const cancelDeleteReview = () => {
@@ -655,11 +721,21 @@ export default function AdminDashboard({ onLogout, navigate }) {
     }
   }, [isDarkMode])
 
-  const handleToggleReviewStatus = (reviewId, newStatus) => {
-    const updatedReviews = reviews.map((review) => (review.id === reviewId ? { ...review, isActive: newStatus } : review))
-    setReviews(updatedReviews)
-    persistData(teachers, updatedReviews)
-    showSuccess(`Sharh statusi ${newStatus ? "Faol" : "Faol emas"} holatiga o'zgartirildi`)
+  const handleToggleReviewStatus = async (reviewId, newStatus) => {
+    try {
+      const { error } = await supabase
+        .from("reviews")
+        .update({ isActive: newStatus })
+        .eq("id", reviewId)
+      
+      if (error) throw error
+      
+      setReviews((prev) => prev.map((r) => (r.id === reviewId ? { ...r, isActive: newStatus } : r)))
+      showSuccess(`Sharh statusi ${newStatus ? "Faol" : "Faol emas"} holatiga o'zgartirildi`)
+    } catch (error) {
+      console.error("Error updating review status:", error)
+      alert("Xatolik yuz berdi")
+    }
   }
 
   return (
@@ -1177,7 +1253,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                       </button>
                     </div>
                   <div className="grid grid-cols-1 gap-3">
-                    {mockData.faculties.map((faculty) => (
+                    {faculties.map((faculty) => (
                       <div
                         key={faculty.id}
                         className={`p-4 rounded-lg border transition-colors duration-300 flex items-center justify-between ${
@@ -1407,7 +1483,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                         }`}
                       >
                         <option value="">Fakultet tanlang</option>
-                        {mockData.faculties.map((faculty) => (
+                        {faculties.map((faculty) => (
                           <option key={faculty.id} value={faculty.id}>
                             {faculty.nameUz}
                           </option>
@@ -1479,16 +1555,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                         </div>
                         <div className="flex gap-3">
                           <button
-                            onClick={() => {
-                              if (!deleteDepartmentId) return
-                              mockData.departments = mockData.departments.filter(
-                                (d) => d.id !== deleteDepartmentId,
-                              )
-                              localStorage.setItem("mockData", JSON.stringify(mockData))
-                              setShowDeleteDepartmentConfirm(false)
-                              setDeleteDepartmentId(null)
-                              showSuccess("Kafedra muvaffaqiyatli o'chirildi")
-                            }}
+                            onClick={confirmDeleteDepartment}
                             className="flex-1 px-4 py-2 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-all duration-200 shadow-md hover:shadow-lg"
                           >
                             Ha
@@ -1563,11 +1630,11 @@ export default function AdminDashboard({ onLogout, navigate }) {
                   </div>
 
                   <div className="grid grid-cols-1 gap-3">
-                    {mockData.departments
+                    {departments
                       .filter((department) => {
                         if (!departmentSearchTerm.trim()) return true
                         const query = departmentSearchTerm.toLowerCase()
-                        const faculty = mockData.faculties.find(
+                        const faculty = faculties.find(
                           (f) => Number(f.id) === Number(department.facultyId),
                         )
                         return (
@@ -1577,7 +1644,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                         )
                       })
                       .map((department) => {
-                      const faculty = mockData.faculties.find((f) => Number(f.id) === Number(department.facultyId))
+                      const faculty = faculties.find((f) => Number(f.id) === Number(department.facultyId))
                       return (
                         <div
                           key={department.id}
@@ -1778,7 +1845,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                       <select
                         value={teacherForm.departmentId}
                         onChange={(event) => {
-                          const dept = mockData.departments.find((d) => d.id === Number.parseInt(event.target.value))
+                          const dept = departments.find((d) => d.id === Number.parseInt(event.target.value))
                           setTeacherForm((prev) => ({
                             ...prev,
                             departmentId: event.target.value,
@@ -1792,7 +1859,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                         }`}
                       >
                         <option value="">Kafedra tanlang</option>
-                        {mockData.departments.map((dept) => (
+                        {departments.map((dept) => (
                           <option key={dept.id} value={dept.id}>
                             {dept.nameUz}
                           </option>

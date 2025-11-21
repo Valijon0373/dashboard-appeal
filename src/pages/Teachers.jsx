@@ -1,16 +1,34 @@
-"use client"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search } from "lucide-react"
-import { mockData } from "../data/mockData"
+import { supabase } from "../lib/supabase"
 
 export default function Teachers({ navigate }) {
   const [searchTerm, setSearchTerm] = useState("")
+  const [teachers, setTeachers] = useState([])
+  const [reviews, setReviews] = useState([])
 
-  const filtered = mockData.teachers.filter(
+  useEffect(() => {
+    const fetchData = async () => {
+       const { data: t } = await supabase.from('teachers').select('*')
+       const { data: r } = await supabase.from('reviews').select('*').eq('isActive', true)
+       const { data: d } = await supabase.from('departments').select('id, nameUz')
+       
+       if (t && r && d) {
+         const enrichedTeachers = t.map(teacher => {
+           const dept = d.find(dp => dp.id === teacher.departmentId)
+           return { ...teacher, department: dept ? dept.nameUz : "" }
+         })
+         setTeachers(enrichedTeachers)
+         setReviews(r)
+       }
+    }
+    fetchData()
+  }, [])
+
+  const filtered = teachers.filter(
     (t) =>
       t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (t.department || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       (t.specialization || "").toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
@@ -37,11 +55,11 @@ export default function Teachers({ navigate }) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filtered.map((teacher) => {
-          const reviews = mockData.reviews.filter((r) => r.teacherId === teacher.id && r.isActive !== false)
+          const teacherReviews = reviews.filter((r) => r.teacherId === teacher.id)
           const avgRating =
-            reviews.length > 0
+            teacherReviews.length > 0
               ? (
-                  reviews.reduce((sum, r) => sum + (r.scores?.overall ?? r.rating ?? 0), 0) / reviews.length
+                  teacherReviews.reduce((sum, r) => sum + (r.scores?.overall ?? r.rating ?? 0), 0) / teacherReviews.length
                 ).toFixed(1)
               : "0.0"
 
@@ -66,7 +84,7 @@ export default function Teachers({ navigate }) {
               <p className="text-xs text-slate-500">Kafedra: {teacher.department}</p>
               {teacher.experience && <p className="text-xs text-slate-500">Tajriba: {teacher.experience}</p>}
               <div className="flex justify-between items-center pt-2">
-                <span className="text-sm text-slate-500">{reviews.length} sharh</span>
+                <span className="text-sm text-slate-500">{teacherReviews.length} sharh</span>
                 <div className="flex items-center gap-1.5">
                   <div className="flex gap-0.5">
                     {[1, 2, 3, 4, 5].map((star) => (

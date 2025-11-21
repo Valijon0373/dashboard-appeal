@@ -1,20 +1,80 @@
 import { useEffect, useState } from "react"
-import { mockData } from "../data/mockData"
+import { supabase } from "../lib/supabase"
 
 export default function Home({ navigate }) {
   const [openReviews, setOpenReviews] = useState(false)
   const [openTeachers, setOpenTeachers] = useState(false)
   
-  const totalFaculties = mockData.faculties.length
-  const totalTeachers = mockData.teachers.length
-  const totalReviews = mockData.reviews.length
-  const avgRating =
-    totalReviews > 0
-      ? (
-          mockData.reviews.reduce((sum, review) => sum + (review.scores?.overall ?? review.rating ?? 0), 0) /
-          totalReviews
-        ).toFixed(1)
-      : "0.0"
+  const [stats, setStats] = useState({
+    faculties: 0,
+    teachers: 0,
+    reviews: 0
+  })
+  
+  const [topTeachers, setTopTeachers] = useState([])
+  const [recentReviews, setRecentReviews] = useState([])
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Get counts
+        const { count: facultiesCount } = await supabase.from('faculties').select('*', { count: 'exact', head: true })
+        const { count: teachersCount } = await supabase.from('teachers').select('*', { count: 'exact', head: true })
+        const { count: reviewsCount } = await supabase.from('reviews').select('*', { count: 'exact', head: true })
+        
+        setStats({
+          faculties: facultiesCount || 0,
+          teachers: teachersCount || 0,
+          reviews: reviewsCount || 0
+        })
+
+        // Get recent reviews
+        const { data: reviews } = await supabase
+           .from('reviews')
+           .select('*')
+           .eq('isActive', true)
+           .order('date', { ascending: false })
+           .limit(5)
+        setRecentReviews(reviews || [])
+
+        // Calculate top teachers
+        const { data: allTeachers } = await supabase.from('teachers').select('id, name, departmentId, department')
+        const { data: allReviews } = await supabase.from('reviews').select('teacherId, rating, scores').eq('isActive', true)
+        
+        // Also need departments for teacher info if department name is not stored (it is stored in mockData normalization, but in Supabase we store departmentId)
+        // But in the table definition I added `departmentId`. I should probably join.
+        // For now, assuming `department` field is not in table (I removed it in SQL), I need to fetch departments to show name.
+        const { data: allDepartments } = await supabase.from('departments').select('id, nameUz')
+
+        if (allTeachers && allReviews) {
+          const calculatedTop = allTeachers.map(t => {
+            const teacherReviews = allReviews.filter(r => r.teacherId === t.id)
+            const avg = teacherReviews.length > 0 
+              ? teacherReviews.reduce((sum, r) => sum + (r.scores?.overall ?? r.rating ?? 0), 0) / teacherReviews.length
+              : 0
+            
+            const deptName = allDepartments?.find(d => d.id === t.departmentId)?.nameUz || ""
+
+            return { 
+              ...t, 
+              department: deptName, 
+              avg: Number(avg.toFixed(1)), 
+              reviewCount: teacherReviews.length 
+            }
+          })
+          .filter(t => t.reviewCount > 0)
+          .sort((a, b) => b.avg - a.avg)
+          .slice(0, 5)
+          
+          setTopTeachers(calculatedTop)
+        }
+      } catch (error) {
+        console.error("Error fetching home data:", error)
+      }
+    }
+    
+    fetchData()
+  }, [])
 
   // Count-up animation for stats
   const [facultiesCount, setFacultiesCount] = useState(0)
@@ -49,16 +109,16 @@ export default function Home({ navigate }) {
       return interval
     }
 
-    const i1 = animate(totalFaculties, setFacultiesCount)
-    const i2 = animate(totalTeachers, setTeachersCount)
-    const i3 = animate(totalReviews, setReviewsCount)
+    const i1 = animate(stats.faculties, setFacultiesCount)
+    const i2 = animate(stats.teachers, setTeachersCount)
+    const i3 = animate(stats.reviews, setReviewsCount)
 
     return () => {
       if (i1) clearInterval(i1)
       if (i2) clearInterval(i2)
       if (i3) clearInterval(i3)
     }
-  }, [totalFaculties, totalTeachers, totalReviews])
+  }, [stats])
   
   const toggleReviews = () => {
     setOpenReviews(!openReviews)
@@ -144,10 +204,7 @@ export default function Home({ navigate }) {
             }`}>
               <h2 className="text-xl font-bold text-slate-900 mb-4">So'nggi Sharhlar</h2>
               <div className="space-y-4">
-                {mockData.reviews
-                  .filter((r) => r.isActive !== false)
-                  .slice(0, 5)
-                  .map((review, i) => (
+                {recentReviews.map((review, i) => (
                     <div 
                       key={i} 
                       className={`border-b border-slate-200 pb-4 last:border-0 transition-all duration-300 ${
@@ -215,22 +272,7 @@ export default function Home({ navigate }) {
             }`}>
               <h2 className="text-xl font-bold text-slate-900 mb-4">Eng Yuqori Baholangan O'qituvchilar</h2>
               <div className="space-y-3">
-                {mockData.teachers
-                  .map((t) => {
-                    const reviews = mockData.reviews.filter((r) => r.teacherId === t.id && r.isActive !== false)
-                    const avg =
-                      reviews.length > 0
-                        ? (
-                            reviews.reduce((sum, review) => sum + (review.scores?.overall ?? review.rating ?? 0), 0) /
-                            reviews.length
-                          ).toFixed(1)
-                        : "0.0"
-                    return { ...t, avg: Number(avg), reviewCount: reviews.length }
-                  })
-                  .filter((t) => t.reviewCount > 0)
-                  .sort((a, b) => b.avg - a.avg)
-                  .slice(0, 5)
-                  .map((teacher, i) => (
+                {topTeachers.map((teacher, i) => (
                     <div 
                       key={i} 
                       className={`flex justify-between items-center p-2 bg-slate-50 rounded-lg transition-all duration-300 ${

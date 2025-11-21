@@ -1,21 +1,34 @@
-"use client"
-
-import { useMemo } from "react"
-import { mockData } from "../data/mockData"
+import { useState, useEffect } from "react"
+import { supabase } from "../lib/supabase"
 
 export default function Department({ id, navigate }) {
-  const departmentId = Number(id)
+  const [department, setDepartment] = useState(null)
+  const [teachers, setTeachers] = useState([])
+  const [reviews, setReviews] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const { department, teachers, departmentHead } = useMemo(() => {
-    const dept = mockData.departments.find((d) => Number(d.id) === departmentId)
-    const teachersList = mockData.teachers.filter((t) => Number(t.departmentId) === departmentId)
-    const head = teachersList.find((t) => t.title === "Kafedra Mudiri")
-    return {
-      department: dept,
-      teachers: teachersList,
-      departmentHead: head,
+  useEffect(() => {
+    const loadData = async () => {
+      if (!id) return
+      setLoading(true)
+      
+      const { data: dept } = await supabase.from('departments').select('*').eq('id', id).single()
+      if (dept) setDepartment(dept)
+
+      const { data: t } = await supabase.from('teachers').select('*').eq('departmentId', id)
+      if (t) setTeachers(t)
+
+      const { data: r } = await supabase.from('reviews').select('*').eq('isActive', true)
+      if (r) setReviews(r)
+
+      setLoading(false)
     }
-  }, [departmentId])
+    loadData()
+  }, [id])
+
+  const departmentHead = teachers.find((t) => t.title === "Kafedra Mudiri")
+
+  if (loading) return <div className="text-center text-slate-600">Yuklanmoqda...</div>
 
   if (!department) {
     return (
@@ -61,11 +74,11 @@ export default function Department({ id, navigate }) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {teachers.map((teacher) => {
-            const reviews = mockData.reviews.filter((r) => r.teacherId === teacher.id)
+            const teacherReviews = reviews.filter((r) => r.teacherId === teacher.id)
             const avgRating =
-              reviews.length > 0
+              teacherReviews.length > 0
                 ? (
-                    reviews.reduce((sum, r) => sum + (r.scores?.overall ?? r.rating ?? 0), 0) / reviews.length
+                    teacherReviews.reduce((sum, r) => sum + (r.scores?.overall ?? r.rating ?? 0), 0) / teacherReviews.length
                   ).toFixed(1)
                 : "0.0"
 
@@ -91,7 +104,7 @@ export default function Department({ id, navigate }) {
                   <p className="text-xs text-slate-500">Tajriba: {teacher.experience}</p>
                 )}
                 <div className="flex justify-between items-center pt-2">
-                  <span className="text-sm text-slate-500">{reviews.length} sharh</span>
+                  <span className="text-sm text-slate-500">{teacherReviews.length} sharh</span>
                   <div className="flex items-center gap-1.5">
                     <div className="flex gap-0.5">
                       {[1, 2, 3, 4, 5].map((star) => (

@@ -1,19 +1,37 @@
-import { useMemo } from "react"
-import { mockData } from "../data/mockData"
+import { useState, useEffect } from "react"
+import { supabase } from "../lib/supabase"
 
 export default function Faculty({ id, navigate }) {
-  // `id` propsi string bo'lishi mumkin, uni raqamga o'tkazib olamiz
-  const numericId = Number(id)
+  const [faculty, setFaculty] = useState(null)
+  const [departments, setDepartments] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const { faculty, departments } = useMemo(() => {
-    const facultyItem = mockData.faculties.find((f) => Number(f.id) === numericId)
-    const deptItems = mockData.departments.filter((d) => Number(d.facultyId) === numericId)
+  useEffect(() => {
+    const loadData = async () => {
+      if (!id) return
+      setLoading(true)
+      
+      const { data: facultyData } = await supabase
+        .from('faculties')
+        .select('*')
+        .eq('id', id)
+        .single()
+        
+      const { data: deptData } = await supabase
+        .from('departments')
+        .select('*')
+        .eq('facultyId', id)
 
-    return {
-      faculty: facultyItem || null,
-      departments: deptItems,
+      if (facultyData) setFaculty(facultyData)
+      if (deptData) setDepartments(deptData)
+      
+      setLoading(false)
     }
-  }, [numericId])
+    
+    loadData()
+  }, [id])
+
+  if (loading) return <div className="text-center text-slate-600">Yuklanmoqda...</div>
 
   if (!faculty) {
     return <div className="text-center text-slate-600">Fakultet topilmadi</div>

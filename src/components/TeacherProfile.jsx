@@ -1,8 +1,8 @@
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
-import { mockData } from "../data/mockData"
 import { CheckCircle, X } from "lucide-react"
+import { supabase } from "../lib/supabase"
 
 const SCORE_FIELDS = [
   { key: "overall", label: "Umumiy" },
@@ -52,9 +52,7 @@ const getQrCodeSrc = (teacher) => {
 }
 
 export default function TeacherProfile({ teacher, onBack, layout = "default" }) {
-  const [reviews, setReviews] = useState(() =>
-    mockData.reviews.filter((review) => Number(review.teacherId) === Number(teacher.id) && review.isActive !== false),
-  )
+  const [reviews, setReviews] = useState([])
   const [formState, setFormState] = useState({
     studentName: "",
     anonymous: false,
@@ -72,6 +70,20 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
   const qrSrc = getQrCodeSrc(teacher)
 
   useEffect(() => {
+    const loadReviews = async () => {
+      const { data } = await supabase
+        .from('reviews')
+        .select('*')
+        .eq('teacherId', teacher.id)
+        .eq('isActive', true)
+        .order('date', { ascending: false })
+      
+      if (data) setReviews(data)
+    }
+    loadReviews()
+  }, [teacher.id])
+
+  useEffect(() => {
     if (showSuccessModal) {
       const timer = setTimeout(() => {
         setShowSuccessModal(false)
@@ -80,7 +92,7 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
     }
   }, [showSuccessModal])
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
     if (!formState.comment.trim()) {
       setShowCommentWarning(true)
@@ -97,28 +109,37 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
       SCORE_FIELDS.reduce((sum, { key }) => sum + Number(scores[key] || 0), 0) / SCORE_FIELDS.length || 0
 
     const newReview = {
-      id: mockData.reviews.length + 1,
       teacherId: teacher.id,
-      teacherName: teacher.name,
+      teacherName: teacher.name, // Although redundant, keeping it for now as table might expect it or code uses it
       studentName:
         formState.anonymous || !formState.studentName.trim() ? "Anonim talaba" : formState.studentName.trim(),
       anonymous: formState.anonymous,
       rating: Number(average.toFixed(1)),
       scores,
       comment: formState.comment,
-      date: new Date().toLocaleDateString("uz-UZ"),
+      date: new Date().toISOString(),
+      isActive: true,
     }
 
-    mockData.reviews.unshift(newReview)
-    localStorage.setItem("mockData", JSON.stringify(mockData))
-    setReviews((prev) => [newReview, ...prev])
-    setFormState({
-      studentName: "",
-      anonymous: false,
-      comment: "",
-      scores: createDefaultScores(),
-    })
-    setShowSuccessModal(true)
+    try {
+        const { data, error } = await supabase.from('reviews').insert([newReview]).select()
+        
+        if (error) throw error
+
+        if (data) {
+            setReviews((prev) => [data[0], ...prev])
+            setFormState({
+            studentName: "",
+            anonymous: false,
+            comment: "",
+            scores: createDefaultScores(),
+            })
+            setShowSuccessModal(true)
+        }
+    } catch (error) {
+        console.error("Error submitting review:", error)
+        alert("Xatolik yuz berdi")
+    }
   }
 
   const handleScoreChange = (key, value) => {
