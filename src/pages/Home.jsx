@@ -38,7 +38,7 @@ export default function Home({ navigate }) {
         setRecentReviews(reviews || [])
 
         // Calculate top teachers
-        const { data: allTeachers } = await supabase.from('teachers').select('id, name, departmentId, department')
+        const { data: allTeachers } = await supabase.from('teachers').select('id, name, departmentId')
         const { data: allReviews } = await supabase.from('reviews').select('teacherId, rating, scores').eq('isActive', true)
         
         // Also need departments for teacher info if department name is not stored (it is stored in mockData normalization, but in Supabase we store departmentId)
