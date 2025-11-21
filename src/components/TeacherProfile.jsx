@@ -46,6 +46,21 @@ const computeCategoryAverages = (reviews) => {
 
 const formatRating = (value) => Number(value || 0).toFixed(1)
 
+const formatDate = (dateString) => {
+  if (!dateString) return ""
+  const date = new Date(dateString)
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })
+    .format(date)
+    .replace(",", "")
+}
+
 const getQrCodeSrc = (teacher) => {
   if (!teacher?.qrData) return "/placeholder.svg"
   return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(teacher.qrData)}`
@@ -110,7 +125,6 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
 
     const newReview = {
       teacherId: teacher.id,
-      teacherName: teacher.name, // Although redundant, keeping it for now as table might expect it or code uses it
       studentName:
         formState.anonymous || !formState.studentName.trim() ? "Anonim talaba" : formState.studentName.trim(),
       anonymous: formState.anonymous,
@@ -138,7 +152,7 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
         }
     } catch (error) {
         console.error("Error submitting review:", error)
-        alert("Xatolik yuz berdi")
+        alert(`Xatolik yuz berdi: ${error.message || "Noma'lum xatolik"}`)
     }
   }
 
@@ -450,7 +464,7 @@ export default function TeacherProfile({ teacher, onBack, layout = "default" }) 
                 <div className="flex justify-between items-start mb-2">
                   <div>
                     <p className="font-medium text-slate-900">{review.studentName}</p>
-                    <p className="text-xs text-slate-500">{review.date}</p>
+                    <p className="text-xs text-slate-500">{formatDate(review.date || review.created_at)}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex gap-0.5">

@@ -45,6 +45,21 @@ const createInitialTeacherForm = () => ({
   qrData: "",
 })
 
+const formatDate = (dateString) => {
+  if (!dateString) return ""
+  const date = new Date(dateString)
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })
+    .format(date)
+    .replace(",", "")
+}
+
 const calculateTeacherMetrics = (teacherId, reviews) => {
   const teacherReviews = reviews.filter((review) => Number(review.teacherId) === Number(teacherId))
   if (!teacherReviews.length) {
@@ -2300,7 +2315,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                         <div>
                           <p className={`font-bold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>{review.studentName}</p>
                           <p className={`text-sm transition-colors duration-300 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>
-                            {review.teacherName} | {review.date}
+                            {review.teacherName} | {formatDate(review.date || review.created_at)}
                           </p>
                         </div>
                         <div className="flex flex-col items-end gap-2">
@@ -2440,7 +2455,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                       </div>
                       <div>
                         <p className={`text-sm font-medium ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-500"}`}>Sana</p>
-                        <p className={`text-lg font-semibold ${isDarkMode ? "text-white" : "text-slate-900"}`}>{viewReview.date}</p>
+                        <p className={`text-lg font-semibold ${isDarkMode ? "text-white" : "text-slate-900"}`}>{formatDate(viewReview.date || viewReview.created_at)}</p>
                       </div>
                       <div>
                         <p className={`text-sm font-medium ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-500"}`}>Baholar</p>
