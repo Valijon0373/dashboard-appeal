@@ -1,5 +1,4 @@
 import { useMemo, useState, useEffect, useRef } from "react"
-import { supabase } from "../lib/supabase"
 import {
   LayoutDashboard,
   Users,
@@ -21,7 +20,6 @@ import {
   CheckCircle2,
   Download,
 } from "lucide-react"
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import * as XLSX from "xlsx"
 
 const SCORE_FIELDS = [
@@ -36,8 +34,6 @@ const createInitialTeacherForm = () => ({
   name: "",
   title: "",
   specialization: "",
-  departmentId: "",
-  department: "",
   email: "",
   phone: "",
   experience: "",
@@ -117,22 +113,9 @@ export default function AdminDashboard({ onLogout, navigate }) {
   const [teachers, setTeachers] = useState([])
   const [reviews, setReviews] = useState([])
   const [faculties, setFaculties] = useState([])
-  const [departments, setDepartments] = useState([])
   const [isLoadingData, setIsLoadingData] = useState(true)
   const [teacherSearchQuery, setTeacherSearchQuery] = useState("")
   const [teacherSearchTerm, setTeacherSearchTerm] = useState("")
-  const [departmentSearchQuery, setDepartmentSearchQuery] = useState("")
-  const [departmentSearchTerm, setDepartmentSearchTerm] = useState("")
-  const [showDepartmentForm, setShowDepartmentForm] = useState(false)
-  const [editingDepartmentId, setEditingDepartmentId] = useState(null)
-  const [showDeleteDepartmentConfirm, setShowDeleteDepartmentConfirm] = useState(false)
-  const [deleteDepartmentId, setDeleteDepartmentId] = useState(null)
-  const [viewDepartment, setViewDepartment] = useState(null)
-  const [departmentForm, setDepartmentFormState] = useState({
-    nameUz: "",
-    nameRu: "",
-    facultyId: "",
-  })
   const [showDeleteReviewConfirm, setShowDeleteReviewConfirm] = useState(false)
   const [deleteReviewId, setDeleteReviewId] = useState(null)
   const [viewReview, setViewReview] = useState(null)
@@ -148,9 +131,6 @@ export default function AdminDashboard({ onLogout, navigate }) {
       showDeleteTeacherConfirm ||
       showTeacherModal ||
       viewTeacher ||
-      showDepartmentForm ||
-      showDeleteDepartmentConfirm ||
-      viewDepartment ||
       showDeleteReviewConfirm ||
       viewReview
 
@@ -170,35 +150,53 @@ export default function AdminDashboard({ onLogout, navigate }) {
     showDeleteTeacherConfirm,
     showTeacherModal,
     viewTeacher,
-    showDepartmentForm,
-    showDeleteDepartmentConfirm,
-    viewDepartment,
     showDeleteReviewConfirm,
     viewReview,
   ])
 
+  // LocalStorage helper functions
+  const getStorageData = (key, defaultValue = []) => {
+    if (typeof window === "undefined") return defaultValue
+    try {
+      const data = localStorage.getItem(key)
+      return data ? JSON.parse(data) : defaultValue
+    } catch (error) {
+      console.error(`Error reading ${key} from localStorage:`, error)
+      return defaultValue
+    }
+  }
+
+  const setStorageData = (key, data) => {
+    if (typeof window === "undefined") return
+    try {
+      localStorage.setItem(key, JSON.stringify(data))
+    } catch (error) {
+      console.error(`Error saving ${key} to localStorage:`, error)
+    }
+  }
+
   const fetchData = async () => {
     try {
       setIsLoadingData(true)
-      const [fRes, dRes, tRes, rRes] = await Promise.all([
-        supabase.from("faculties").select("*").order("id"),
-        supabase.from("departments").select("*").order("id"),
-        supabase.from("teachers").select("*").order("id"),
-        supabase.from("reviews").select("*").order("date", { ascending: false }),
-      ])
+      
+      const facultiesData = getStorageData("admin_faculties", [])
+      const teachersData = getStorageData("admin_teachers", [])
+      const reviewsData = getStorageData("admin_reviews", [])
 
-      if (fRes.error) throw fRes.error
-      if (dRes.error) throw dRes.error
-      if (tRes.error) throw tRes.error
-      if (rRes.error) throw rRes.error
+      // Sort data
+      const sortedFaculties = [...facultiesData].sort((a, b) => (a.id || 0) - (b.id || 0))
+      const sortedTeachers = [...teachersData].sort((a, b) => (a.id || 0) - (b.id || 0))
+      const sortedReviews = [...reviewsData].sort((a, b) => {
+        const dateA = new Date(a.date || 0)
+        const dateB = new Date(b.date || 0)
+        return dateB - dateA
+      })
 
-      setFaculties(fRes.data)
-      setDepartments(dRes.data)
-      setTeachers(tRes.data)
-      setReviews(rRes.data)
+      setFaculties(sortedFaculties)
+      setTeachers(sortedTeachers)
+      setReviews(sortedReviews)
     } catch (error) {
       console.error("Error fetching data:", error)
-      // alert("Ma'lumotlarni yuklashda xatolik yuz berdi!") 
     } finally {
       setIsLoadingData(false)
     }
@@ -231,40 +229,20 @@ export default function AdminDashboard({ onLogout, navigate }) {
   }
 
 
-  // const persistData = (updatedTeachers, updatedReviews = reviews) => {
-  //   mockData.teachers = updatedTeachers
-  //   mockData.reviews = updatedReviews
-  //   localStorage.setItem(
-  //     "mockData",
-  //     JSON.stringify({
-  //       ...mockData,
-  //       teachers: updatedTeachers,
-  //       reviews: updatedReviews,
-  //     }),
-  //   )
-  // }
-
-
   const handleDownloadStatistics = () => {
     const data = teachers.map((teacher) => {
-      const department = departments.find((d) => d.id === Number(teacher.departmentId))
-      const faculty = department ? faculties.find((f) => f.id === Number(department.facultyId)) : null
       const metrics = calculateTeacherMetrics(teacher.id, reviews)
       
       return {
-        "Fakultet": faculty ? faculty.nameUz : "Noma'lum",
-        "Kafedra": department ? department.nameUz : "Noma'lum",
         "F.I.O": teacher.name,
         "Tel_raqam": teacher.phone || "",
         "Rayting": metrics.overall,
-        "Sharhlar soni": metrics.total
+        "Murojaatlar soni": metrics.total
       }
     })
 
-    // Ma'lumotlarni saralash: Fakultet -> Kafedra -> F.I.O
+    // Ma'lumotlarni saralash: F.I.O
     data.sort((a, b) => {
-      if (a["Fakultet"] !== b["Fakultet"]) return a["Fakultet"].localeCompare(b["Fakultet"])
-      if (a["Kafedra"] !== b["Kafedra"]) return a["Kafedra"].localeCompare(b["Kafedra"])
       return a["F.I.O"].localeCompare(b["F.I.O"])
     })
 
@@ -272,12 +250,10 @@ export default function AdminDashboard({ onLogout, navigate }) {
     
     // Ustunlar kengligini sozlash
     const wscols = [
-      { wch: 30 }, // Fakultet
-      { wch: 30 }, // Kafedra
       { wch: 30 }, // F.I.O
       { wch: 20 }, // Tel_raqam
       { wch: 10 }, // Rayting
-      { wch: 15 }  // Sharhlar soni
+      { wch: 15 }  // Murojaatlar soni
     ]
     worksheet['!cols'] = wscols
 
@@ -289,70 +265,12 @@ export default function AdminDashboard({ onLogout, navigate }) {
   const stats = useMemo(
     () => ({
       faculties: faculties.length,
-      departments: departments.length,
       teachers: teachers.length,
       reviews: reviews.length,
-      avgRating:
-        reviews.length > 0
-          ? (reviews.reduce((sum, review) => sum + (review.scores?.overall ?? review.rating ?? 0), 0) / reviews.length).toFixed(1)
-          : "0.0",
     }),
-    [teachers.length, reviews, faculties.length, departments.length],
+    [teachers.length, reviews, faculties.length],
   )
 
-  // Chart data for Pie Chart - Rating distribution
-  const ratingDistribution = useMemo(() => {
-    const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
-    reviews.forEach((review) => {
-      const rating = Math.round(review.scores?.overall ?? review.rating ?? 0)
-      if (rating >= 1 && rating <= 5) {
-        distribution[rating] = (distribution[rating] || 0) + 1
-      }
-    })
-    return [
-      { name: "1 yulduz", value: distribution[1], color: "#ef4444" },
-      { name: "2 yulduz", value: distribution[2], color: "#f97316" },
-      { name: "3 yulduz", value: distribution[3], color: "#eab308" },
-      { name: "4 yulduz", value: distribution[4], color: "#22c55e" },
-      { name: "5 yulduz", value: distribution[5], color: "#00d4aa" },
-    ]
-  }, [reviews])
-
-  // Chart data for Bar Chart - Teachers by department
-  const teachersByDepartment = useMemo(() => {
-    const deptCount = {}
-    teachers.forEach((teacher) => {
-      const deptName = teacher.department || "Noma'lum"
-      deptCount[deptName] = (deptCount[deptName] || 0) + 1
-    })
-    return Object.entries(deptCount)
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10) // Top 10 departments
-  }, [teachers])
-
-  // Chart data for Bar Chart - Average ratings by category
-  const ratingsByCategory = useMemo(() => {
-    if (reviews.length === 0) return []
-    const categoryTotals = SCORE_FIELDS.reduce((acc, { key }) => ({ ...acc, [key]: { sum: 0, count: 0 } }), {})
-    
-    reviews.forEach((review) => {
-      SCORE_FIELDS.forEach(({ key }) => {
-        const score = review.scores?.[key] ?? (key === "overall" ? review.rating : 0)
-        if (score > 0) {
-          categoryTotals[key].sum += score
-          categoryTotals[key].count += 1
-        }
-      })
-    })
-
-    return SCORE_FIELDS.map(({ key, label }) => ({
-      name: label,
-      rating: categoryTotals[key].count > 0 
-        ? Number((categoryTotals[key].sum / categoryTotals[key].count).toFixed(1))
-        : 0,
-    }))
-  }, [reviews])
 
   const handleAddFaculty = async (event) => {
     event.preventDefault()
@@ -362,20 +280,24 @@ export default function AdminDashboard({ onLogout, navigate }) {
     }
 
     try {
+      const currentFaculties = getStorageData("admin_faculties", [])
+      
       if (editingFacultyId) {
-        const { error } = await supabase
-          .from("faculties")
-          .update({ nameUz: facultyForm.nameUz, nameRu: facultyForm.nameRu })
-          .eq("id", editingFacultyId)
-        
-        if (error) throw error
+        const updatedFaculties = currentFaculties.map(f => 
+          f.id === editingFacultyId 
+            ? { ...f, nameUz: facultyForm.nameUz, nameRu: facultyForm.nameRu }
+            : f
+        )
+        setStorageData("admin_faculties", updatedFaculties)
         showSuccess("Fakultet muvaffaqiyatli yangilandi")
       } else {
-        const { error } = await supabase
-          .from("faculties")
-          .insert([{ nameUz: facultyForm.nameUz, nameRu: facultyForm.nameRu }])
-        
-        if (error) throw error
+        const newId = Math.max(...currentFaculties.map(f => f.id || 0), 0) + 1
+        const newFaculty = {
+          id: newId,
+          nameUz: facultyForm.nameUz,
+          nameRu: facultyForm.nameRu
+        }
+        setStorageData("admin_faculties", [...currentFaculties, newFaculty])
         showSuccess("Fakultet muvaffaqiyatli qo'shildi")
       }
       
@@ -404,8 +326,9 @@ export default function AdminDashboard({ onLogout, navigate }) {
     if (!deleteConfirmId) return
 
     try {
-      const { error } = await supabase.from("faculties").delete().eq("id", deleteConfirmId)
-      if (error) throw error
+      const currentFaculties = getStorageData("admin_faculties", [])
+      const updatedFaculties = currentFaculties.filter(f => f.id !== deleteConfirmId)
+      setStorageData("admin_faculties", updatedFaculties)
 
       showSuccess("Fakultet muvaffaqiyatli o'chirildi")
       await fetchData()
@@ -437,89 +360,6 @@ export default function AdminDashboard({ onLogout, navigate }) {
     setViewTeacher(teacher)
   }
 
-  const handleAddDepartment = async (event) => {
-    event.preventDefault()
-    if (!departmentForm.nameUz || !departmentForm.nameRu || !departmentForm.facultyId) {
-      alert("Iltimos, barcha maydonlarni to'ldiring")
-      return
-    }
-
-    try {
-      if (editingDepartmentId) {
-        const { error } = await supabase
-          .from("departments")
-          .update({
-            facultyId: Number.parseInt(departmentForm.facultyId),
-            nameUz: departmentForm.nameUz,
-            nameRu: departmentForm.nameRu,
-          })
-          .eq("id", editingDepartmentId)
-
-        if (error) throw error
-        showSuccess("Kafedra muvaffaqiyatli yangilandi")
-      } else {
-        const { error } = await supabase
-          .from("departments")
-          .insert([{
-            facultyId: Number.parseInt(departmentForm.facultyId),
-            nameUz: departmentForm.nameUz,
-            nameRu: departmentForm.nameRu,
-            head: "",
-          }])
-        
-        if (error) throw error
-        showSuccess("Kafedra muvaffaqiyatli qo'shildi")
-      }
-      
-      await fetchData()
-      setDepartmentFormState({ nameUz: "", nameRu: "", facultyId: "" })
-      setEditingDepartmentId(null)
-      setShowDepartmentForm(false)
-    } catch (error) {
-      console.error("Error saving department:", error)
-      alert("Xatolik yuz berdi")
-    }
-  }
-
-  const handleViewDepartment = (department, faculty) => {
-    setViewDepartment({
-      ...department,
-      facultyName: faculty ? faculty.nameUz : "",
-    })
-  }
-
-  const handleEditDepartment = (department) => {
-    setDepartmentFormState({
-      nameUz: department.nameUz,
-      nameRu: department.nameRu,
-      facultyId: String(department.facultyId),
-    })
-    setEditingDepartmentId(department.id)
-    setShowDepartmentForm(true)
-  }
-
-  const handleDeleteDepartment = (departmentId) => {
-    setDeleteDepartmentId(departmentId)
-    setShowDeleteDepartmentConfirm(true)
-  }
-
-  const confirmDeleteDepartment = async () => {
-    if (!deleteDepartmentId) return
-    try {
-      const { error } = await supabase.from("departments").delete().eq("id", deleteDepartmentId)
-      if (error) throw error
-      
-      showSuccess("Kafedra muvaffaqiyatli o'chirildi")
-      await fetchData()
-    } catch (error) {
-      console.error("Error deleting department:", error)
-      alert("Xatolik yuz berdi")
-    } finally {
-      setShowDeleteDepartmentConfirm(false)
-      setDeleteDepartmentId(null)
-    }
-  }
-
   const handleImageChange = (event) => {
     const file = event.target.files[0]
     if (file) {
@@ -535,18 +375,18 @@ export default function AdminDashboard({ onLogout, navigate }) {
     event.preventDefault()
     
     // Validate required fields
-    if (!teacherForm.name || !teacherForm.title || !teacherForm.departmentId || 
+    if (!teacherForm.name || !teacherForm.title || 
         !teacherForm.phone || !teacherForm.email || !imagePreview) {
-      alert("Iltimos, barcha majburiy maydonlarni to'ldiring: Ism, Lavozim, Kafedra, Telefon, Rasm va Pochta")
+      alert("Iltimos, barcha majburiy maydonlarni to'ldiring: Ism, Lavozim, Telefon, Rasm va Pochta")
       return
     }
 
     try {
+      const currentTeachers = getStorageData("admin_teachers", [])
       const teacherData = {
         name: teacherForm.name,
-        title: teacherForm.title || "O'qituvchi",
-        specialization: teacherForm.specialization || teacherForm.department,
-        departmentId: Number.parseInt(teacherForm.departmentId),
+        title: teacherForm.title || "Tyutor",
+        specialization: teacherForm.specialization || "",
         email: teacherForm.email,
         phone: teacherForm.phone,
         experience: teacherForm.experience,
@@ -556,20 +396,16 @@ export default function AdminDashboard({ onLogout, navigate }) {
       }
 
       if (editingTeacherId) {
-        const { error } = await supabase
-          .from("teachers")
-          .update(teacherData)
-          .eq("id", editingTeacherId)
-        
-        if (error) throw error
-        showSuccess("O'qituvchi ma'lumotlari muvaffaqiyatli yangilandi")
+        const updatedTeachers = currentTeachers.map(t => 
+          t.id === editingTeacherId ? { ...t, ...teacherData } : t
+        )
+        setStorageData("admin_teachers", updatedTeachers)
+        showSuccess("Tyutor ma'lumotlari muvaffaqiyatli yangilandi")
       } else {
-        const { error } = await supabase
-          .from("teachers")
-          .insert([teacherData])
-        
-        if (error) throw error
-        showSuccess("O'qituvchi muvaffaqiyatli qo'shildi")
+        const newId = Math.max(...currentTeachers.map(t => t.id || 0), 0) + 1
+        const newTeacher = { id: newId, ...teacherData }
+        setStorageData("admin_teachers", [...currentTeachers, newTeacher])
+        showSuccess("Tyutor muvaffaqiyatli qo'shildi")
       }
 
       await fetchData()
@@ -588,8 +424,6 @@ export default function AdminDashboard({ onLogout, navigate }) {
       name: teacher.name,
       title: teacher.title,
       specialization: teacher.specialization,
-      departmentId: teacher.departmentId ? String(teacher.departmentId) : "",
-      department: teacher.department,
       email: teacher.email,
       phone: teacher.phone,
       experience: teacher.experience,
@@ -613,10 +447,11 @@ export default function AdminDashboard({ onLogout, navigate }) {
     if (!deleteTeacherId) return
 
     try {
-      const { error } = await supabase.from("teachers").delete().eq("id", deleteTeacherId)
-      if (error) throw error
+      const currentTeachers = getStorageData("admin_teachers", [])
+      const updatedTeachers = currentTeachers.filter(t => t.id !== deleteTeacherId)
+      setStorageData("admin_teachers", updatedTeachers)
 
-      showSuccess("O'qituvchi muvaffaqiyatli o'chirildi")
+      showSuccess("Tyutor muvaffaqiyatli o'chirildi")
       await fetchData()
 
       if (editingTeacherId && Number(editingTeacherId) === Number(deleteTeacherId)) {
@@ -647,10 +482,11 @@ export default function AdminDashboard({ onLogout, navigate }) {
     if (!deleteReviewId) return
 
     try {
-      const { error } = await supabase.from("reviews").delete().eq("id", deleteReviewId)
-      if (error) throw error
+      const currentReviews = getStorageData("admin_reviews", [])
+      const updatedReviews = currentReviews.filter(r => r.id !== deleteReviewId)
+      setStorageData("admin_reviews", updatedReviews)
 
-      showSuccess("Sharh muvaffaqiyatli o'chirildi")
+      showSuccess("Murojaat muvaffaqiyatli o'chirildi")
       await fetchData()
     } catch (error) {
       console.error("Error deleting review:", error)
@@ -673,9 +509,8 @@ export default function AdminDashboard({ onLogout, navigate }) {
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "categories", label: "Fakultetlar", icon: Landmark },
-    { id: "departments", label: "Kafedralar", icon: GraduationCap },
-    { id: "doctors", label: "O'qituvchilar", icon: Users },
-    { id: "news", label: "Sharhlar", icon: FileText },
+    { id: "doctors", label: "Tyutorlar", icon: Users },
+    { id: "news", label: "Murojaatlar", icon: FileText },
     { id: "about", label: "Biz haqimizda", icon: Info },
   ]
 
@@ -738,15 +573,14 @@ export default function AdminDashboard({ onLogout, navigate }) {
 
   const handleToggleReviewStatus = async (reviewId, newStatus) => {
     try {
-      const { error } = await supabase
-        .from("reviews")
-        .update({ isActive: newStatus })
-        .eq("id", reviewId)
-      
-      if (error) throw error
+      const currentReviews = getStorageData("admin_reviews", [])
+      const updatedReviews = currentReviews.map(r => 
+        r.id === reviewId ? { ...r, isActive: newStatus } : r
+      )
+      setStorageData("admin_reviews", updatedReviews)
       
       setReviews((prev) => prev.map((r) => (r.id === reviewId ? { ...r, isActive: newStatus } : r)))
-      showSuccess(`Sharh statusi ${newStatus ? "Faol" : "Faol emas"} holatiga o'zgartirildi`)
+      showSuccess(`Murojaat statusi ${newStatus ? "Faol" : "Faol emas"} holatiga o'zgartirildi`)
     } catch (error) {
       console.error("Error updating review status:", error)
       alert("Xatolik yuz berdi")
@@ -893,9 +727,8 @@ export default function AdminDashboard({ onLogout, navigate }) {
 
             {activeNavItem !== "categories" &&
               activeNavItem !== "doctors" &&
-              activeNavItem !== "news" &&
-              activeNavItem !== "departments" && (
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+              activeNavItem !== "news" && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
               <div
                 className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-lg p-4 transition-colors duration-300`}
               >
@@ -912,19 +745,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                 className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-lg p-4 transition-colors duration-300`}
               >
                 <p className={`text-sm transition-colors duration-300 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>
-                  Kafedralar
-                </p>
-                <p
-                  className={`text-2xl font-bold transition-colors duration-300 ${isDarkMode ? "text-green-400" : "text-green-600"}`}
-                >
-                  {stats.departments}
-                </p>
-              </div>
-              <div
-                className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-lg p-4 transition-colors duration-300`}
-              >
-                <p className={`text-sm transition-colors duration-300 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>
-                  O'qituvchilar
+                  Tyutorlar
                 </p>
                 <p
                   className={`text-2xl font-bold transition-colors duration-300 ${isDarkMode ? "text-purple-400" : "text-purple-600"}`}
@@ -936,7 +757,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                 className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-lg p-4 transition-colors duration-300`}
               >
                 <p className={`text-sm transition-colors duration-300 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>
-                  Sharhlar
+                  Murojaatlar
                 </p>
                 <p
                   className={`text-2xl font-bold transition-colors duration-300 ${isDarkMode ? "text-orange-400" : "text-orange-600"}`}
@@ -944,106 +765,9 @@ export default function AdminDashboard({ onLogout, navigate }) {
                   {stats.reviews}
                 </p>
               </div>
-              <div
-                className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-lg p-4 transition-colors duration-300`}
-              >
-                <p className={`text-sm transition-colors duration-300 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>
-                  O'rt. Reyting
-                </p>
-                <p
-                  className={`text-2xl font-bold transition-colors duration-300 ${isDarkMode ? "text-pink-400" : "text-pink-600"}`}
-                >
-                  {stats.avgRating}
-                </p>
-              </div>
             </div>
             )}
 
-            {/* Charts Section */}
-            {activeNavItem !== "categories" &&
-              activeNavItem !== "doctors" &&
-              activeNavItem !== "news" &&
-              activeNavItem !== "departments" && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                {/* Pie Chart - Rating Distribution */}
-                <div
-                  className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-lg p-6 transition-colors duration-300`}
-                >
-                  <h2
-                    className={`text-xl font-bold mb-4 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                  >
-                    Reytinglar Taqsimoti
-                  </h2>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={ratingDistribution}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={100}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {ratingDistribution.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: isDarkMode ? "#14232c" : "#fff",
-                          border: isDarkMode ? "1px solid #1a2d3a" : "1px solid #e2e8f0",
-                          borderRadius: "8px",
-                          color: isDarkMode ? "#fff" : "#000",
-                        }}
-                      />
-                      <Legend
-                        wrapperStyle={{
-                          color: isDarkMode ? "#fff" : "#000",
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-
-                {/* Bar Chart - Ratings by Category */}
-                <div
-                  className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-lg p-6 transition-colors duration-300`}
-                >
-                  <h2
-                    className={`text-xl font-bold mb-4 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                  >
-                    Kategoriyalar Bo'yicha O'rtacha Reytinglar
-                  </h2>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={ratingsByCategory}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "#1a2d3a" : "#e2e8f0"} />
-                      <XAxis
-                        dataKey="name"
-                        tick={{ fill: isDarkMode ? "#8b9ba8" : "#64748b", fontSize: 12 }}
-                        angle={-45}
-                        textAnchor="end"
-                        height={80}
-                      />
-                      <YAxis
-                        domain={[0, 5]}
-                        tick={{ fill: isDarkMode ? "#8b9ba8" : "#64748b", fontSize: 12 }}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: isDarkMode ? "#14232c" : "#fff",
-                          border: isDarkMode ? "1px solid #1a2d3a" : "1px solid #e2e8f0",
-                          borderRadius: "8px",
-                          color: isDarkMode ? "#fff" : "#000",
-                        }}
-                      />
-                      <Bar dataKey="rating" fill="#00d4aa" radius={[8, 8, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            )}
 
             {activeNavItem === "categories" && (
               <>
@@ -1318,412 +1042,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
               </>
             )}
 
-            {viewDepartment && (
-              <div
-                className="fixed inset-0 bg-black bg-opacity-0 z-50 flex items-center justify-center p-4"
-                onClick={() => setViewDepartment(null)}
-                style={{
-                  animation: "fadeIn 0.3s ease-in-out forwards",
-                }}
-              >
-                <div
-                  className={`${
-                    isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"
-                  } border rounded-xl p-6 w-full max-w-md relative`}
-                  onClick={(e) => e.stopPropagation()}
-                  style={{
-                    animation: "slideUp 0.3s ease-out forwards",
-                  }}
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <h2
-                      className={`text-xl font-bold transition-colors duration-300 ${
-                        isDarkMode ? "text-white" : "text-slate-900"
-                      }`}
-                    >
-                      Kafedra ma'lumotlari
-                    </h2>
-                    <button
-                      onClick={() => setViewDepartment(null)}
-                      className={`transition-colors ${
-                        isDarkMode ? "text-[#8b9ba8] hover:text-white" : "text-slate-600 hover:text-slate-900"
-                      }`}
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    <p
-                      className={`font-semibold transition-colors duration-300 ${
-                        isDarkMode ? "text-white" : "text-slate-900"
-                      }`}
-                    >
-                      {viewDepartment.nameUz}
-                    </p>
-                    {viewDepartment.nameRu && (
-                      <p
-                        className={`text-sm transition-colors duration-300 ${
-                          isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"
-                        }`}
-                      >
-                        {viewDepartment.nameRu}
-                      </p>
-                    )}
-                    {viewDepartment.facultyName && (
-                      <p
-                        className={`text-sm transition-colors duration-300 ${
-                          isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"
-                        }`}
-                      >
-                        Fakultet: <span className="font-medium">{viewDepartment.facultyName}</span>
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
 
-            {showDepartmentForm && (
-              <div
-                className="fixed inset-0 bg-black bg-opacity-0 z-50 flex items-center justify-center p-4"
-                onClick={() => {
-                  setShowDepartmentForm(false)
-                  setDepartmentFormState({ nameUz: "", nameRu: "", facultyId: "" })
-                }}
-                style={{
-                  animation: "fadeIn 0.3s ease-in-out forwards",
-                }}
-              >
-                <div
-                  className={`${
-                    isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"
-                  } border rounded-xl p-6 w-full max-w-md relative`}
-                  onClick={(e) => e.stopPropagation()}
-                  style={{
-                    animation: "slideUp 0.3s ease-out forwards",
-                  }}
-                >
-                  <div className="flex items-center justify-between mb-6">
-                    <h2
-                      className={`text-xl font-bold transition-colors duration-300 ${
-                        isDarkMode ? "text-white" : "text-slate-900"
-                      }`}
-                    >
-                      {editingDepartmentId ? "Kafedrani Tahrirlash" : "Yangi Kafedra Qo'shish"}
-                    </h2>
-                    <button
-                      onClick={() => {
-                        setShowDepartmentForm(false)
-                        setEditingDepartmentId(null)
-                        setDepartmentFormState({ nameUz: "", nameRu: "", facultyId: "" })
-                      }}
-                      className={`transition-colors ${
-                        isDarkMode ? "text-[#8b9ba8] hover:text-white" : "text-slate-600 hover:text-slate-900"
-                      }`}
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                  <form onSubmit={handleAddDepartment} className="space-y-4">
-                    <div>
-                      <label
-                        className={`block text-sm font-medium mb-1 transition-colors duration-300 ${
-                          isDarkMode ? "text-white" : "text-slate-900"
-                        }`}
-                      >
-                        Kafedra nomi (O'zbek)
-                      </label>
-                      <input
-                        type="text"
-                        value={departmentForm.nameUz}
-                        onChange={(e) =>
-                          setDepartmentFormState((prev) => ({
-                            ...prev,
-                            nameUz: e.target.value,
-                          }))
-                        }
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#00d4aa] transition-colors duration-300 ${
-                          isDarkMode
-                            ? "bg-[#0e1a22] border-[#1a2d3a] text-white"
-                            : "bg-white border-slate-300 text-slate-900"
-                        }`}
-                        placeholder="Masalan: Dasturlash kafedrasi"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        className={`block text-sm font-medium mb-1 transition-colors duration-300 ${
-                          isDarkMode ? "text-white" : "text-slate-900"
-                        }`}
-                      >
-                        Kafedra nomi (Rus)
-                      </label>
-                      <input
-                        type="text"
-                        value={departmentForm.nameRu}
-                        onChange={(e) =>
-                          setDepartmentFormState((prev) => ({
-                            ...prev,
-                            nameRu: e.target.value,
-                          }))
-                        }
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#00d4aa] transition-colors duration-300 ${
-                          isDarkMode
-                            ? "bg-[#0e1a22] border-[#1a2d3a] text-white"
-                            : "bg-white border-slate-300 text-slate-900"
-                        }`}
-                        placeholder="Кафедра программирования"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        className={`block text-sm font-medium mb-1 transition-colors duration-300 ${
-                          isDarkMode ? "text-white" : "text-slate-900"
-                        }`}
-                      >
-                        Fakultetni tanlang
-                      </label>
-                      <select
-                        value={departmentForm.facultyId}
-                        onChange={(e) =>
-                          setDepartmentFormState((prev) => ({
-                            ...prev,
-                            facultyId: e.target.value,
-                          }))
-                        }
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#00d4aa] transition-colors duration-300 ${
-                          isDarkMode
-                            ? "bg-[#0e1a22] border-[#1a2d3a] text-white"
-                            : "bg-white border-slate-300 text-slate-900"
-                        }`}
-                      >
-                        <option value="">Fakultet tanlang</option>
-                        {faculties.map((faculty) => (
-                          <option key={faculty.id} value={faculty.id}>
-                            {faculty.nameUz}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="flex gap-3">
-                      <button
-                        type="submit"
-                        className="flex-1 px-4 py-2 bg-[#00d4aa] text-white rounded-xl font-medium hover:bg-[#00b894] transition-all duration-200 shadow-md hover:shadow-lg"
-                      >
-                        {editingDepartmentId ? "Yangilash" : "Saqlash"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowDepartmentForm(false)
-                          setEditingDepartmentId(null)
-                          setDepartmentFormState({ nameUz: "", nameRu: "", facultyId: "" })
-                        }}
-                        className={`px-4 py-2 border rounded-xl font-medium transition-all duration-200 ${
-                          isDarkMode
-                            ? "border-[#1a2d3a] text-white hover:bg-[#1a2d3a]"
-                            : "border-slate-300 text-slate-900 hover:bg-slate-100"
-                        }`}
-                      >
-                        Bekor qilish
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            )}
-
-            {activeNavItem === "departments" && (
-              <div className="w-full">
-                <div
-                  className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-lg p-6 transition-colors duration-300`}
-                >
-                  {/* Delete Department Confirmation Modal */}
-                  {showDeleteDepartmentConfirm && (
-                    <div
-                      className="fixed inset-0 bg-black bg-opacity-0 z-50 flex items-center justify-center p-4"
-                      onClick={() => {
-                        setShowDeleteDepartmentConfirm(false)
-                        setDeleteDepartmentId(null)
-                      }}
-                      style={{
-                        animation: "fadeIn 0.3s ease-in-out forwards",
-                      }}
-                    >
-                      <div
-                        className={`${
-                          isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"
-                        } border rounded-xl p-6 w-full max-w-md relative`}
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                          animation: "slideUp 0.3s ease-out forwards",
-                        }}
-                      >
-                        <div className="mb-6">
-                          <h2
-                            className={`text-xl font-bold transition-colors duration-300 ${
-                              isDarkMode ? "text-white" : "text-slate-900"
-                            }`}
-                          >
-                            Kafedrani o'chirishni tasdiqlaysizmi?
-                          </h2>
-                        </div>
-                        <div className="flex gap-3">
-                          <button
-                            onClick={confirmDeleteDepartment}
-                            className="flex-1 px-4 py-2 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-all duration-200 shadow-md hover:shadow-lg"
-                          >
-                            Ha
-                          </button>
-                          <button
-                            onClick={() => {
-                              setShowDeleteDepartmentConfirm(false)
-                              setDeleteDepartmentId(null)
-                            }}
-                            className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-600 transition-all duration-200 shadow-md hover:shadow-lg"
-                          >
-                            Yo'q
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between mb-6">
-                    <h2
-                      className={`text-xl font-bold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                    >
-                      Kafedralar Ro'yxati
-                    </h2>
-                    <button
-                      onClick={() => {
-                        setDepartmentFormState({ nameUz: "", nameRu: "", facultyId: "" })
-                        setShowDepartmentForm(true)
-                      }}
-                      className="flex items-center gap-2 px-4 py-2 bg-[#00d4aa] text-white rounded-xl font-medium hover:bg-[#00b894] transition-all duration-200 shadow-md hover:shadow-lg"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Qo'shish
-                    </button>
-                  </div>
-
-                  {/* Search Input */}
-                  <div className="mb-6">
-                    <div className="flex gap-3">
-                      <div className="relative flex-1">
-                        <Search
-                          className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors duration-300 ${
-                            isDarkMode ? "text-[#8b9ba8]" : "text-slate-400"
-                          }`}
-                        />
-                        <input
-                          type="text"
-                          value={departmentSearchQuery}
-                          onChange={(e) => setDepartmentSearchQuery(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault()
-                              setDepartmentSearchTerm(departmentSearchQuery)
-                            }
-                          }}
-                          placeholder="Kafedra qidirish..."
-                          className={`w-full pl-10 pr-4 py-2.5 border-2 border-blue-500 rounded-full focus:outline-none focus:border-blue-600 transition-colors duration-300 ${
-                            isDarkMode
-                              ? "bg-[#0e1a22] text-white placeholder:text-[#8b9ba8]"
-                              : "bg-white text-slate-900 placeholder:text-slate-400"
-                          }`}
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setDepartmentSearchTerm(departmentSearchQuery)}
-                        className="px-6 py-2.5 border-2 border-blue-500 text-blue-500 rounded-full font-medium hover:bg-blue-500 hover:text-white transition-all duration-200 whitespace-nowrap"
-                      >
-                        Qidirish
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3">
-                    {departments
-                      .filter((department) => {
-                        if (!departmentSearchTerm.trim()) return true
-                        const query = departmentSearchTerm.toLowerCase()
-                        const faculty = faculties.find(
-                          (f) => Number(f.id) === Number(department.facultyId),
-                        )
-                        return (
-                          department.nameUz.toLowerCase().includes(query) ||
-                          (department.nameRu && department.nameRu.toLowerCase().includes(query)) ||
-                          (faculty && faculty.nameUz.toLowerCase().includes(query))
-                        )
-                      })
-                      .map((department) => {
-                      const faculty = faculties.find((f) => Number(f.id) === Number(department.facultyId))
-                      return (
-                        <div
-                          key={department.id}
-                          className={`p-4 rounded-lg border transition-colors duration-300 flex items-center justify-between ${
-                            isDarkMode ? "bg-[#0e1a22] border-[#1a2d3a]" : "bg-slate-50 border-slate-200"
-                          }`}
-                        >
-                          <div className="flex flex-col gap-1 flex-1">
-                            <h3
-                              className={`font-bold transition-colors duration-300 ${
-                                isDarkMode ? "text-white" : "text-slate-900"
-                              }`}
-                            >
-                              {department.nameUz}
-                            </h3>
-                            {department.nameRu && (
-                              <p
-                                className={`text-sm transition-colors duration-300 ${
-                                  isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"
-                                }`}
-                              >
-                                {department.nameRu}
-                              </p>
-                            )}
-                            {faculty && (
-                              <p
-                                className={`text-sm transition-colors duration-300 ${
-                                  isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"
-                                }`}
-                              >
-                                Fakultet: <span className="font-medium">{faculty.nameUz}</span>
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 ml-4">
-                            <button
-                              onClick={() => handleViewDepartment(department, faculty)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-200 text-blue-500 border-blue-500/30 hover:bg-blue-500/10"
-                            >
-                              <Eye className="w-4 h-4" />
-                              <span className="text-sm">Ko'rish</span>
-                            </button>
-                            <button
-                              onClick={() => handleEditDepartment(department)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-200 text-green-500 border-green-500/30 hover:bg-green-500/10"
-                            >
-                              <Pencil className="w-4 h-4" />
-                              <span className="text-sm">Tahrirlash</span>
-                            </button>
-                            <button
-                              onClick={() => handleDeleteDepartment(department.id)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-200 text-red-500 border-red-500/30 hover:bg-red-500/10"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                              <span className="text-sm">O'chirish</span>
-                            </button>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
 
           {activeNavItem === "doctors" && (
             <>
@@ -1790,7 +1109,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                       <h2
                         className={`text-xl font-bold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
                       >
-                        {editingTeacherId ? "O'qituvchini Tahrirlash" : "Yangi O'qituvchi Qo'shish"}
+                        {editingTeacherId ? "Tyutorni Tahrirlash" : "Yangi Tyutor Qo'shish"}
                       </h2>
                       <button
                         onClick={() => {
@@ -1815,7 +1134,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                             ? "bg-[#0e1a22] border-[#1a2d3a] text-white"
                             : "bg-white border-slate-300 text-slate-900"
                         }`}
-                        placeholder="O'qituvchi ismi"
+                        placeholder="Tyutor ismi"
                       />
                     </div>
                     <div>
@@ -1832,10 +1151,9 @@ export default function AdminDashboard({ onLogout, navigate }) {
                         }`}
                       >
                         <option value="">Lavozim tanlang</option>
-                        <option value="Kafedra Mudiri">Kafedra Mudiri</option>
-                        <option value="Dotsent">Dotsent</option>
-                        <option value="O'qituvchi">O'qituvchi</option>
-                        <option value="O'qituvchi-Stajor">O'qituvchi-Stajor</option>
+                        <option value="Tyutor">Tyutor</option>
+                        <option value="Katta Tyutor">Katta Tyutor</option>
+                        <option value="Tyutor-Stajor">Tyutor-Stajor</option>
                       </select>
                     </div>
                     <div>
@@ -1852,34 +1170,6 @@ export default function AdminDashboard({ onLogout, navigate }) {
                         placeholder="Masalan: Kompyuter tamoyillari"
                         maxLength={40}
                       />
-                    </div>
-                    <div>
-                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
-                        Kafedra <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={teacherForm.departmentId}
-                        onChange={(event) => {
-                          const dept = departments.find((d) => d.id === Number.parseInt(event.target.value))
-                          setTeacherForm((prev) => ({
-                            ...prev,
-                            departmentId: event.target.value,
-                            department: dept ? dept.nameUz : "",
-                          }))
-                        }}
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#00d4aa] transition-colors duration-300 ${
-                          isDarkMode
-                            ? "bg-[#0e1a22] border-[#1a2d3a] text-white"
-                            : "bg-white border-slate-300 text-slate-900"
-                        }`}
-                      >
-                        <option value="">Kafedra tanlang</option>
-                        {departments.map((dept) => (
-                          <option key={dept.id} value={dept.id}>
-                            {dept.nameUz}
-                          </option>
-                        ))}
-                      </select>
                     </div>
                     <div>
                       <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
@@ -2028,7 +1318,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
               <div className="w-full">
                 <div className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-lg p-6 transition-colors duration-300`}>
                   <div className="flex items-center justify-between mb-6">
-                    <h2 className={`text-xl font-bold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>O'qituvchilar Ro'yxati</h2>
+                    <h2 className={`text-xl font-bold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>Tyutorlar Ro'yxati</h2>
                     <div className="flex items-center gap-3">
                       <button
                         onClick={handleDownloadStatistics}
@@ -2065,7 +1355,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                                setTeacherSearchTerm(teacherSearchQuery)
                              }
                            }}
-                           placeholder="O'qituvchi qidirish..."
+                           placeholder="Tyutor qidirish..."
                            className={`w-full pl-10 pr-4 py-2.5 border-2 border-blue-500 rounded-full focus:outline-none focus:border-blue-600 transition-colors duration-300 ${
                              isDarkMode
                                ? "bg-[#0e1a22] text-white placeholder:text-[#8b9ba8]"
@@ -2092,7 +1382,6 @@ export default function AdminDashboard({ onLogout, navigate }) {
                           teacher.name?.toLowerCase().includes(query) ||
                           teacher.title?.toLowerCase().includes(query) ||
                           teacher.specialization?.toLowerCase().includes(query) ||
-                          teacher.department?.toLowerCase().includes(query) ||
                           teacher.email?.toLowerCase().includes(query)
                         )
                       })
@@ -2135,7 +1424,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                                 {teacher.name}
                               </h3>
                               <p className={`text-sm transition-colors duration-300 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>
-                                {teacher.title || "O'qituvchi"}
+                                {teacher.title || "Tyutor"}
                               </p>
                             </div>
 
@@ -2171,7 +1460,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                                 Reyting: {metrics.overall.toFixed(1)} / 5
                               </p>
                               <p className={`text-xs transition-colors duration-300 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>
-                                {metrics.total} ta sharh
+                                {metrics.total} ta murojaat
                               </p>
                             </div>
 
@@ -2235,7 +1524,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                       <h2
                         className={`text-xl font-bold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
                       >
-                        O'qituvchi ma'lumotlari
+                        Tyutor ma'lumotlari
                       </h2>
                       <button
                         onClick={() => setViewTeacher(null)}
@@ -2261,10 +1550,6 @@ export default function AdminDashboard({ onLogout, navigate }) {
 
                     <div className="space-y-3">
                       <div>
-                        <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>Kafedra:</p>
-                        <p className={`font-medium ${isDarkMode ? "text-white" : "text-slate-900"}`}>{viewTeacher.department}</p>
-                      </div>
-                      <div>
                         <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>Mutaxassislik:</p>
                         <p className={`font-medium ${isDarkMode ? "text-white" : "text-slate-900"}`}>{viewTeacher.specialization || "-"}</p>
                       </div>
@@ -2284,7 +1569,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                         <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>Reyting:</p>
                         <div className="flex items-center gap-2">
                            <span className="text-yellow-400 font-bold">★ {calculateTeacherMetrics(viewTeacher.id, reviews).overall.toFixed(1)}</span>
-                           <span className={`text-sm ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>({calculateTeacherMetrics(viewTeacher.id, reviews).total} ta sharh)</span>
+                           <span className={`text-sm ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>({calculateTeacherMetrics(viewTeacher.id, reviews).total} ta murojaat)</span>
                         </div>
                       </div>
                       {viewTeacher.bio && (
@@ -2302,10 +1587,10 @@ export default function AdminDashboard({ onLogout, navigate }) {
 
           {activeNavItem === "news" && (
             <div className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-lg p-6 transition-colors duration-300`}>
-              <h2 className={`text-2xl font-bold mb-6 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>Barcha Sharhlar</h2>
+              <h2 className={`text-2xl font-bold mb-6 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>Barcha Murojaatlar</h2>
               <div className="space-y-4 max-h-[calc(100vh-250px)] overflow-y-auto">
                 {reviews.length === 0 ? (
-                  <p className={`transition-colors duration-300 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>Hali hech qanday sharh yo'q</p>
+                  <p className={`transition-colors duration-300 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>Hali hech qanday murojaat yo'q</p>
                 ) : (
                   reviews.map((review, i) => (
                     <div key={i} className={`p-4 rounded-lg border transition-colors duration-300 ${
@@ -2394,7 +1679,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                       <h2
                         className={`text-xl font-bold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
                       >
-                        Siz ushbu sharhni o'chirmoqchimisiz?
+                        Siz ushbu murojaatni o'chirmoqchimisiz?
                       </h2>
                     </div>
                     <div className="flex gap-3">
@@ -2435,7 +1720,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                       <h2
                         className={`text-xl font-bold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
                       >
-                        Sharh tafsilotlari
+                        Murojaat tafsilotlari
                       </h2>
                       <button
                         onClick={() => setViewReview(null)}
@@ -2450,7 +1735,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                         <p className={`text-lg font-semibold ${isDarkMode ? "text-white" : "text-slate-900"}`}>{viewReview.studentName}</p>
                       </div>
                       <div>
-                        <p className={`text-sm font-medium ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-500"}`}>O'qituvchi</p>
+                        <p className={`text-sm font-medium ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-500"}`}>Tyutor</p>
                         <p className={`text-lg font-semibold ${isDarkMode ? "text-white" : "text-slate-900"}`}>{viewReview.teacherName}</p>
                       </div>
                       <div>
@@ -2475,7 +1760,7 @@ export default function AdminDashboard({ onLogout, navigate }) {
                         </div>
                       </div>
                       <div>
-                        <p className={`text-sm font-medium ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-500"}`}>Sharh</p>
+                        <p className={`text-sm font-medium ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-500"}`}>Murojaat</p>
                         <p className={`mt-1 ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}>{viewReview.comment}</p>
                       </div>
                     </div>
