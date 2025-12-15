@@ -60,6 +60,7 @@ export default function AdminLogin({ navigate, setIsAdmin }) {
           <img src={logo} alt="UrSPI Logo" className="h-24 mx-auto mb-4 object-contain" />
           <h1 className="text-3xl font-bold text-slate-900 mb-2">UrSPI Admin</h1>
           <p className="text-slate-600">Admin foydalanuvchining hissobini kiriting</p>
+          <p className="text-3xl font-bold text-red-500 mb-2">Ushbu Tizim Test rejimda ishlamoqda...</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
