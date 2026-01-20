@@ -21,25 +21,41 @@ import {
   Download,
 } from "lucide-react"
 import * as XLSX from "xlsx"
+import Faculties from "./Faculties"
+import Tutors from "./Tutors"
 
-const SCORE_FIELDS = [
-  { key: "overall", label: "Umumiy" },
-  { key: "teaching", label: "O'qitish" },
-  { key: "communication", label: "Muloqot" },
-  { key: "knowledge", label: "Bilim" },
-  { key: "engagement", label: "Yaqinlik" },
-]
+// Use same base URL as login (AdminLogin.jsx) by default
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://teacher.urspi.uz"
 
-const createInitialTeacherForm = () => ({
-  name: "",
-  title: "",
-  specialization: "",
-  email: "",
-  phone: "",
-  experience: "",
-  bio: "",
-  qrData: "",
-})
+// Helper: unauthorized bo'lsa admin login sahifasiga qaytarish
+const handleUnauthorized = () => {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.removeItem("adminSession")
+  } catch (e) {
+    console.error("Error clearing adminSession:", e)
+  }
+  alert("Sessiya tugadi. Iltimos, qayta tizimga kiring.")
+  window.location.reload()
+}
+
+// Helper: get auth headers from adminSession (set in AdminLogin)
+const getAuthHeaders = () => {
+  if (typeof window === "undefined") return {}
+  try {
+    const sessionRaw = localStorage.getItem("adminSession")
+    if (!sessionRaw) return {}
+    const session = JSON.parse(sessionRaw)
+    if (!session?.accessToken) return {}
+    return {
+      Authorization: `Bearer ${session.accessToken}`,
+    }
+  } catch (error) {
+    console.error("Error reading adminSession from localStorage:", error)
+    return {}
+  }
+}
+
 
 const formatDate = (dateString) => {
   if (!dateString) return ""
@@ -56,35 +72,6 @@ const formatDate = (dateString) => {
     .replace(",", "")
 }
 
-const calculateTeacherMetrics = (teacherId, reviews) => {
-  const teacherReviews = reviews.filter((review) => Number(review.teacherId) === Number(teacherId))
-  if (!teacherReviews.length) {
-    return {
-      total: 0,
-      overall: 0,
-      averages: SCORE_FIELDS.reduce((acc, { key }) => ({ ...acc, [key]: 0 }), {}),
-    }
-  }
-
-  const totals = SCORE_FIELDS.reduce((acc, { key }) => ({ ...acc, [key]: 0 }), {})
-  teacherReviews.forEach((review) => {
-    SCORE_FIELDS.forEach(({ key }) => {
-      totals[key] += review.scores?.[key] ?? review.rating ?? 0
-    })
-  })
-
-  const averages = SCORE_FIELDS.reduce((acc, { key }) => {
-    acc[key] = Number((totals[key] / teacherReviews.length).toFixed(1))
-    return acc
-  }, {})
-
-  return {
-    total: teacherReviews.length,
-    overall: averages.overall ?? 0,
-    averages,
-  }
-}
-
 export default function AdminDashboard({ onLogout, navigate }) {
   const [activeTab, setActiveTab] = useState("faculties")
   const [activeNavItem, setActiveNavItem] = useState("dashboard")
@@ -96,26 +83,10 @@ export default function AdminDashboard({ onLogout, navigate }) {
     }
     return true
   })
-  const [facultyForm, setFacultyForm] = useState({ nameUz: "", nameRu: "" })
-  const [showFacultyForm, setShowFacultyForm] = useState(false)
-  const [editingFacultyId, setEditingFacultyId] = useState(null)
-  const [viewFaculty, setViewFaculty] = useState(null)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [deleteConfirmId, setDeleteConfirmId] = useState(null)
-  const [showDeleteTeacherConfirm, setShowDeleteTeacherConfirm] = useState(false)
-  const [deleteTeacherId, setDeleteTeacherId] = useState(null)
-  const [deleteTeacherName, setDeleteTeacherName] = useState("")
-  const [teacherForm, setTeacherForm] = useState(createInitialTeacherForm)
-  const [imagePreview, setImagePreview] = useState(null)
-  const [editingTeacherId, setEditingTeacherId] = useState(null)
-  const [showTeacherModal, setShowTeacherModal] = useState(false)
-  const [viewTeacher, setViewTeacher] = useState(null)
-  const [teachers, setTeachers] = useState([])
   const [reviews, setReviews] = useState([])
   const [faculties, setFaculties] = useState([])
+  const [teachers, setTeachers] = useState([])
   const [isLoadingData, setIsLoadingData] = useState(true)
-  const [teacherSearchQuery, setTeacherSearchQuery] = useState("")
-  const [teacherSearchTerm, setTeacherSearchTerm] = useState("")
   const [showDeleteReviewConfirm, setShowDeleteReviewConfirm] = useState(false)
   const [deleteReviewId, setDeleteReviewId] = useState(null)
   const [viewReview, setViewReview] = useState(null)
@@ -125,12 +96,6 @@ export default function AdminDashboard({ onLogout, navigate }) {
   // Prevent body scroll when any modal is open
   useEffect(() => {
     const isAnyModalOpen =
-      showFacultyForm ||
-      viewFaculty ||
-      showDeleteConfirm ||
-      showDeleteTeacherConfirm ||
-      showTeacherModal ||
-      viewTeacher ||
       showDeleteReviewConfirm ||
       viewReview
 
@@ -144,12 +109,6 @@ export default function AdminDashboard({ onLogout, navigate }) {
       document.body.style.overflow = "unset"
     }
   }, [
-    showFacultyForm,
-    viewFaculty,
-    showDeleteConfirm,
-    showDeleteTeacherConfirm,
-    showTeacherModal,
-    viewTeacher,
     showDeleteReviewConfirm,
     viewReview,
   ])
@@ -179,22 +138,77 @@ export default function AdminDashboard({ onLogout, navigate }) {
     try {
       setIsLoadingData(true)
       
-      const facultiesData = getStorageData("admin_faculties", [])
-      const teachersData = getStorageData("admin_teachers", [])
+      // Reviews hozircha localStorage dan olinadi
       const reviewsData = getStorageData("admin_reviews", [])
-
-      // Sort data
-      const sortedFaculties = [...facultiesData].sort((a, b) => (a.id || 0) - (b.id || 0))
-      const sortedTeachers = [...teachersData].sort((a, b) => (a.id || 0) - (b.id || 0))
       const sortedReviews = [...reviewsData].sort((a, b) => {
         const dateA = new Date(a.date || 0)
         const dateB = new Date(b.date || 0)
         return dateB - dateA
       })
-
-      setFaculties(sortedFaculties)
-      setTeachers(sortedTeachers)
       setReviews(sortedReviews)
+
+      // Backenddan fakultetlar va tyutorlarni olib kelamiz
+      try {
+        const [facultiesResponse, tutorsResponse] = await Promise.all([
+          fetch(`${API_BASE}/api/faculty/all`, {
+            headers: {
+              ...getAuthHeaders(),
+            },
+          }),
+          fetch(`${API_BASE}/api/tutor/all`, {
+            headers: {
+              ...getAuthHeaders(),
+            },
+          }),
+        ])
+
+        if (facultiesResponse.ok) {
+          const facultiesData = await facultiesResponse.json()
+          setFaculties(
+            Array.isArray(facultiesData)
+              ? facultiesData.map((faculty) => ({
+                  ...faculty,
+                  nameUz: faculty.nameUz || faculty.name || "",
+                }))
+              : [],
+          )
+        } else {
+          if (facultiesResponse.status === 401 || facultiesResponse.status === 403) {
+            handleUnauthorized()
+            return
+          }
+          console.error("Faculty list fetch failed:", facultiesResponse.status)
+          setFaculties([])
+        }
+
+        if (tutorsResponse.ok) {
+          const tutorsData = await tutorsResponse.json()
+          setTeachers(
+            Array.isArray(tutorsData)
+              ? tutorsData.map((teacher) => ({
+                  ...teacher,
+                  name: teacher.fullName || teacher.fullname || teacher.name || "",
+                  phone: teacher.phone || "",
+                  faculty: teacher.facultyId || teacher.faculty?.id || "",
+                }))
+              : [],
+          )
+        } else {
+          if (tutorsResponse.status === 401 || tutorsResponse.status === 403) {
+            handleUnauthorized()
+            return
+          }
+          console.error("Tutor list fetch failed:", tutorsResponse.status)
+          setTeachers([])
+        }
+      } catch (apiError) {
+        console.error("Error fetching from API:", apiError)
+        // Fallback to localStorage if API fails
+        const facultiesData = getStorageData("admin_faculties", [])
+        const teachersData = getStorageData("admin_teachers", [])
+        setFaculties(facultiesData)
+        setTeachers(teachersData)
+      }
     } catch (error) {
       console.error("Error fetching data:", error)
     } finally {
@@ -217,51 +231,6 @@ export default function AdminDashboard({ onLogout, navigate }) {
     }, 2500)
   }
 
-  const resetTeacherForm = () => {
-    const nextId = Math.max(...teachers.map((t) => Number(t.id)), 0) + 1
-    const initialForm = createInitialTeacherForm()
-    initialForm.qrData = `https://feedback.urspi.uz/teacher/${nextId}`
-    
-    setTeacherForm(initialForm)
-    setImagePreview(null)
-    setEditingTeacherId(null)
-    setShowTeacherModal(false)
-  }
-
-
-  const handleDownloadStatistics = () => {
-    const data = teachers.map((teacher) => {
-      const metrics = calculateTeacherMetrics(teacher.id, reviews)
-      
-      return {
-        "F.I.O": teacher.name,
-        "Tel_raqam": teacher.phone || "",
-        "Rayting": metrics.overall,
-        "Murojaatlar soni": metrics.total
-      }
-    })
-
-    // Ma'lumotlarni saralash: F.I.O
-    data.sort((a, b) => {
-      return a["F.I.O"].localeCompare(b["F.I.O"])
-    })
-
-    const worksheet = XLSX.utils.json_to_sheet(data)
-    
-    // Ustunlar kengligini sozlash
-    const wscols = [
-      { wch: 30 }, // F.I.O
-      { wch: 20 }, // Tel_raqam
-      { wch: 10 }, // Rayting
-      { wch: 15 }  // Murojaatlar soni
-    ]
-    worksheet['!cols'] = wscols
-
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Statistika")
-    XLSX.writeFile(workbook, "Statistika.xlsx")
-  }
-
   const stats = useMemo(
     () => ({
       faculties: faculties.length,
@@ -270,208 +239,6 @@ export default function AdminDashboard({ onLogout, navigate }) {
     }),
     [teachers.length, reviews, faculties.length],
   )
-
-
-  const handleAddFaculty = async (event) => {
-    event.preventDefault()
-    if (!facultyForm.nameUz || !facultyForm.nameRu) {
-      alert("Iltimos, barcha maydonlarni to'ldiring")
-      return
-    }
-
-    try {
-      const currentFaculties = getStorageData("admin_faculties", [])
-      
-      if (editingFacultyId) {
-        const updatedFaculties = currentFaculties.map(f => 
-          f.id === editingFacultyId 
-            ? { ...f, nameUz: facultyForm.nameUz, nameRu: facultyForm.nameRu }
-            : f
-        )
-        setStorageData("admin_faculties", updatedFaculties)
-        showSuccess("Fakultet muvaffaqiyatli yangilandi")
-      } else {
-        const newId = Math.max(...currentFaculties.map(f => f.id || 0), 0) + 1
-        const newFaculty = {
-          id: newId,
-          nameUz: facultyForm.nameUz,
-          nameRu: facultyForm.nameRu
-        }
-        setStorageData("admin_faculties", [...currentFaculties, newFaculty])
-        showSuccess("Fakultet muvaffaqiyatli qo'shildi")
-      }
-      
-      await fetchData()
-      setFacultyForm({ nameUz: "", nameRu: "" })
-      setEditingFacultyId(null)
-      setShowFacultyForm(false)
-    } catch (error) {
-      console.error("Error saving faculty:", error)
-      alert("Xatolik: " + (error.message || "Noma'lum xatolik"))
-    }
-  }
-
-  const handleEditFaculty = (faculty) => {
-    setFacultyForm({ nameUz: faculty.nameUz, nameRu: faculty.nameRu })
-    setEditingFacultyId(faculty.id)
-    setShowFacultyForm(true)
-  }
-
-  const handleDeleteFaculty = (facultyId) => {
-    setDeleteConfirmId(facultyId)
-    setShowDeleteConfirm(true)
-  }
-
-  const confirmDeleteFaculty = async () => {
-    if (!deleteConfirmId) return
-
-    try {
-      const currentFaculties = getStorageData("admin_faculties", [])
-      const updatedFaculties = currentFaculties.filter(f => f.id !== deleteConfirmId)
-      setStorageData("admin_faculties", updatedFaculties)
-
-      showSuccess("Fakultet muvaffaqiyatli o'chirildi")
-      await fetchData()
-      
-      if (editingFacultyId === deleteConfirmId) {
-        setFacultyForm({ nameUz: "", nameRu: "" })
-        setEditingFacultyId(null)
-        setShowFacultyForm(false)
-      }
-    } catch (error) {
-      console.error("Error deleting faculty:", error)
-      alert("Xatolik yuz berdi")
-    } finally {
-      setShowDeleteConfirm(false)
-      setDeleteConfirmId(null)
-    }
-  }
-
-  const cancelDeleteFaculty = () => {
-    setShowDeleteConfirm(false)
-    setDeleteConfirmId(null)
-  }
-
-  const handleViewFaculty = (faculty) => {
-    setViewFaculty(faculty)
-  }
-
-  const handleViewTeacher = (teacher) => {
-    setViewTeacher(teacher)
-  }
-
-  const handleImageChange = (event) => {
-    const file = event.target.files[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (readerEvent) => {
-        setImagePreview(readerEvent.target?.result ?? null)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  const handleAddOrUpdateTeacher = async (event) => {
-    event.preventDefault()
-    
-    // Validate required fields
-    if (!teacherForm.name || !teacherForm.title || 
-        !teacherForm.phone || !teacherForm.email || !imagePreview) {
-      alert("Iltimos, barcha majburiy maydonlarni to'ldiring: Ism, Lavozim, Telefon, Rasm va Pochta")
-      return
-    }
-
-    try {
-      const currentTeachers = getStorageData("admin_teachers", [])
-      const teacherData = {
-        name: teacherForm.name,
-        title: teacherForm.title || "Tyutor",
-        specialization: teacherForm.specialization || "",
-        email: teacherForm.email,
-        phone: teacherForm.phone,
-        experience: teacherForm.experience,
-        bio: teacherForm.bio,
-        qrData: teacherForm.qrData || teacherForm.email || teacherForm.name,
-        image: imagePreview || "",
-      }
-
-      if (editingTeacherId) {
-        const updatedTeachers = currentTeachers.map(t => 
-          t.id === editingTeacherId ? { ...t, ...teacherData } : t
-        )
-        setStorageData("admin_teachers", updatedTeachers)
-        showSuccess("Tyutor ma'lumotlari muvaffaqiyatli yangilandi")
-      } else {
-        const newId = Math.max(...currentTeachers.map(t => t.id || 0), 0) + 1
-        const newTeacher = { id: newId, ...teacherData }
-        setStorageData("admin_teachers", [...currentTeachers, newTeacher])
-        showSuccess("Tyutor muvaffaqiyatli qo'shildi")
-      }
-
-      await fetchData()
-      resetTeacherForm()
-      setShowTeacherModal(false)
-    } catch (error) {
-      console.error("Error saving teacher:", error)
-      alert("Xatolik yuz berdi")
-    }
-  }
-
-  const handleEditTeacher = (teacher) => {
-    setActiveTab("teachers")
-    setEditingTeacherId(teacher.id)
-    setTeacherForm({
-      name: teacher.name,
-      title: teacher.title,
-      specialization: teacher.specialization,
-      email: teacher.email,
-      phone: teacher.phone,
-      experience: teacher.experience,
-      bio: teacher.bio,
-      qrData: teacher.qrData,
-    })
-    setImagePreview(teacher.image || null)
-    setShowTeacherModal(true)
-  }
-
-  const handleDeleteTeacher = (teacherId) => {
-    const teacher = teachers.find((t) => Number(t.id) === Number(teacherId))
-    if (teacher) {
-      setDeleteTeacherId(teacherId)
-      setDeleteTeacherName(teacher.name)
-      setShowDeleteTeacherConfirm(true)
-    }
-  }
-
-  const confirmDeleteTeacher = async () => {
-    if (!deleteTeacherId) return
-
-    try {
-      const currentTeachers = getStorageData("admin_teachers", [])
-      const updatedTeachers = currentTeachers.filter(t => t.id !== deleteTeacherId)
-      setStorageData("admin_teachers", updatedTeachers)
-
-      showSuccess("Tyutor muvaffaqiyatli o'chirildi")
-      await fetchData()
-
-      if (editingTeacherId && Number(editingTeacherId) === Number(deleteTeacherId)) {
-        resetTeacherForm()
-      }
-    } catch (error) {
-      console.error("Error deleting teacher:", error)
-      alert("Xatolik yuz berdi")
-    } finally {
-      setShowDeleteTeacherConfirm(false)
-      setDeleteTeacherId(null)
-      setDeleteTeacherName("")
-    }
-  }
-
-  const cancelDeleteTeacher = () => {
-    setShowDeleteTeacherConfirm(false)
-    setDeleteTeacherId(null)
-    setDeleteTeacherName("")
-  }
 
   const handleDeleteReview = (reviewId) => {
     setDeleteReviewId(reviewId)
@@ -516,13 +283,6 @@ export default function AdminDashboard({ onLogout, navigate }) {
 
   const handleNavClick = (itemId) => {
     setActiveNavItem(itemId)
-    if (itemId === "doctors" || itemId === "dashboard" || itemId === "categories") {
-      if (itemId === "doctors") {
-        setActiveTab("teachers")
-      } else {
-        setActiveTab("faculties")
-      }
-    }
   }
 
   const toggleTheme = () => {
@@ -770,819 +530,13 @@ export default function AdminDashboard({ onLogout, navigate }) {
 
 
             {activeNavItem === "categories" && (
-              <>
-                {/* View Faculty Modal */}
-                {viewFaculty && (
-                  <div
-                    className="fixed inset-0 bg-black bg-opacity-0 z-50 flex items-center justify-center p-4"
-                    onClick={() => setViewFaculty(null)}
-                    style={{
-                      animation: 'fadeIn 0.3s ease-in-out forwards'
-                    }}
-                  >
-                    <div
-                      className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-xl p-6 w-full max-w-md relative`}
-                      onClick={(e) => e.stopPropagation()}
-                      style={{
-                        animation: 'slideUp 0.3s ease-out forwards'
-                      }}
-                    >
-                      <div className="flex items-center justify-between mb-4">
-                        <h2
-                          className={`text-xl font-bold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                        >
-                          Fakultet ma'lumotlari
-                        </h2>
-                        <button
-                          onClick={() => setViewFaculty(null)}
-                          className={`transition-colors ${isDarkMode ? "text-[#8b9ba8] hover:text-white" : "text-slate-600 hover:text-slate-900"}`}
-                        >
-                          <X className="w-5 h-5" />
-                        </button>
-                      </div>
-                      <div className="space-y-3">
-                        <div>
-                          <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>
-                            O'zbek nomi:
-                          </p>
-                          <p
-                            className={`font-semibold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                          >
-                            {viewFaculty.nameUz}
-                          </p>
-                        </div>
-                        <div>
-                          <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>
-                            Rus nomi:
-                          </p>
-                          <p
-                            className={`font-semibold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                          >
-                            {viewFaculty.nameRu}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Delete Confirmation Modal */}
-                {showDeleteConfirm && (
-                  <div
-                    className="fixed inset-0 bg-black bg-opacity-0 z-50 flex items-center justify-center p-4"
-                    onClick={cancelDeleteFaculty}
-                    style={{
-                      animation: 'fadeIn 0.3s ease-in-out forwards'
-                    }}
-                  >
-                    <div
-                      className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-xl p-6 w-full max-w-md relative`}
-                      onClick={(e) => e.stopPropagation()}
-                      style={{
-                        animation: 'slideUp 0.3s ease-out forwards'
-                      }}
-                    >
-                      <div className="mb-6">
-                        <h2
-                          className={`text-xl font-bold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                        >
-                          Fakultetni o'chirishni tasdiqlaysizmi?
-                        </h2>
-                      </div>
-                      <div className="flex gap-3">
-                        <button
-                          onClick={confirmDeleteFaculty}
-                          className="flex-1 px-4 py-2 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-all duration-200 shadow-md hover:shadow-lg"
-                        >
-                          Ha
-                        </button>
-                        <button
-                          onClick={cancelDeleteFaculty}
-                          className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-600 transition-all duration-200 shadow-md hover:shadow-lg"
-                        >
-                          Yo'q
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Modal Overlay */}
-                {showFacultyForm && (
-                  <div
-                    className="fixed inset-0 bg-black bg-opacity-0 z-50 flex items-center justify-center p-4"
-                    onClick={() => {
-                      setShowFacultyForm(false)
-                      setFacultyForm({ nameUz: "", nameRu: "" })
-                      setEditingFacultyId(null)
-                    }}
-                    style={{
-                      animation: 'fadeIn 0.3s ease-in-out forwards'
-                    }}
-                  >
-                    <div
-                      className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-xl p-6 w-full max-w-md relative`}
-                      onClick={(e) => e.stopPropagation()}
-                      style={{
-                        animation: 'slideUp 0.3s ease-out forwards'
-                      }}
-                    >
-                      <div className="flex items-center justify-between mb-6">
-                        <h2
-                          className={`text-xl font-bold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                        >
-                          {editingFacultyId ? "Fakultetni Tahrirlash" : "Yangi Fakultet Qo'shish"}
-                        </h2>
-                        <button
-                          onClick={() => {
-                            setShowFacultyForm(false)
-                            setFacultyForm({ nameUz: "", nameRu: "" })
-                          }}
-                          className={`transition-colors ${isDarkMode ? "text-[#8b9ba8] hover:text-white" : "text-slate-600 hover:text-slate-900"}`}
-                        >
-                          <X className="w-5 h-5" />
-                        </button>
-                      </div>
-                      <form onSubmit={handleAddFaculty} className="space-y-4">
-                        <div>
-                          <label
-                            className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                          >
-                            O'zbek Nomi
-                          </label>
-                          <input
-                            type="text"
-                            value={facultyForm.nameUz}
-                            onChange={(e) => setFacultyForm({ ...facultyForm, nameUz: e.target.value })}
-                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#00d4aa] transition-colors duration-300 ${
-                              isDarkMode
-                                ? "bg-[#0e1a22] border-[#1a2d3a] text-white"
-                                : "bg-white border-slate-300 text-slate-900"
-                            }`}
-                            placeholder="Fakultet nomi"
-                          />
-                        </div>
-                        <div>
-                          <label
-                            className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                          >
-                            Rus Nomi
-                          </label>
-                          <input
-                            type="text"
-                            value={facultyForm.nameRu}
-                            onChange={(e) => setFacultyForm({ ...facultyForm, nameRu: e.target.value })}
-                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#00d4aa] transition-colors duration-300 ${
-                              isDarkMode
-                                ? "bg-[#0e1a22] border-[#1a2d3a] text-white"
-                                : "bg-white border-slate-300 text-slate-900"
-                            }`}
-                            placeholder="Название факультета"
-                          />
-                        </div>
-                        <div className="flex gap-3">
-                          <button
-                            type="submit"
-                            className="flex-1 px-4 py-2 bg-[#00d4aa] text-white rounded-xl font-medium hover:bg-[#00b894] transition-all duration-200 shadow-md hover:shadow-lg"
-                          >
-                            {editingFacultyId ? "Saqlash" : "Qo'shish"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowFacultyForm(false)
-                              setFacultyForm({ nameUz: "", nameRu: "" })
-                              setEditingFacultyId(null)
-                            }}
-                            className={`px-4 py-2 border rounded-xl font-medium transition-all duration-200 ${
-                              isDarkMode
-                                ? "border-[#1a2d3a] text-white hover:bg-[#1a2d3a]"
-                                : "border-slate-300 text-slate-900 hover:bg-slate-100"
-                            }`}
-                          >
-                            Bekor qilish
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-                  </div>
-                )}
-
-                {/* Main Content */}
-                <div className="w-full">
-                  <div
-                    className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-lg p-6 transition-colors duration-300`}
-                  >
-                    <div className="flex items-center justify-between mb-6">
-                      <h2
-                        className={`text-xl font-bold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                      >
-                        Mavjud Fakultetlar
-                      </h2>
-                      <button
-                        onClick={() => {
-                          setEditingFacultyId(null)
-                          setFacultyForm({ nameUz: "", nameRu: "" })
-                          setShowFacultyForm(true)
-                        }}
-                        className="flex items-center gap-2 px-4 py-2 bg-[#00d4aa] text-white rounded-xl font-medium hover:bg-[#00b894] transition-all duration-200 shadow-md hover:shadow-lg"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Qo'shish
-                      </button>
-                    </div>
-                  <div className="grid grid-cols-1 gap-3">
-                    {faculties.map((faculty) => (
-                      <div
-                        key={faculty.id}
-                        className={`p-4 rounded-lg border transition-colors duration-300 flex items-center justify-between ${
-                          isDarkMode ? "bg-[#0e1a22] border-[#1a2d3a]" : "bg-slate-50 border-slate-200"
-                        }`}
-                      >
-                        <div className="flex-1">
-                          <h3
-                            className={`font-bold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                          >
-                            {faculty.nameUz}
-                          </h3>
-                          <p
-                            className={`text-sm transition-colors duration-300 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}
-                          >
-                            {faculty.nameRu}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 ml-4">
-                          <button
-                            onClick={() => handleViewFaculty(faculty)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-200 text-blue-500 border-blue-500/30 hover:bg-blue-500/10"
-                          >
-                            <Eye className="w-4 h-4" />
-                            <span className="text-sm">Ko'rish</span>
-                          </button>
-                          <button
-                            onClick={() => handleEditFaculty(faculty)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-200 text-green-500 border-green-500/30 hover:bg-green-500/10"
-                          >
-                            <Pencil className="w-4 h-4" />
-                            <span className="text-sm">Tahrirlash</span>
-                          </button>
-                          <button
-                            onClick={() => handleDeleteFaculty(faculty.id)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-200 text-red-500 border-red-500/30 hover:bg-red-500/10"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            <span className="text-sm">O'chirish</span>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  </div>
-                </div>
-              </>
+              <Faculties isDarkMode={isDarkMode} />
             )}
 
 
 
           {activeNavItem === "doctors" && (
-            <>
-              {/* Delete Teacher Confirmation Modal */}
-              {showDeleteTeacherConfirm && (
-                <div
-                  className="fixed inset-0 bg-black bg-opacity-0 z-50 flex items-center justify-center p-4"
-                  onClick={cancelDeleteTeacher}
-                  style={{
-                    animation: 'fadeIn 0.3s ease-in-out forwards'
-                  }}
-                >
-                  <div
-                    className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-xl p-6 w-full max-w-md relative`}
-                    onClick={(e) => e.stopPropagation()}
-                    style={{
-                      animation: 'slideUp 0.3s ease-out forwards'
-                    }}
-                  >
-                    <div className="mb-6">
-                      <h2
-                        className={`text-xl font-bold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                      >
-                        Siz {deleteTeacherName} o'chirmoqchimisiz?
-                      </h2>
-                    </div>
-                    <div className="flex gap-3">
-                      <button
-                        onClick={confirmDeleteTeacher}
-                        className="flex-1 px-4 py-2 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-all duration-200 shadow-md hover:shadow-lg"
-                      >
-                        Ha
-                      </button>
-                      <button
-                        onClick={cancelDeleteTeacher}
-                        className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-600 transition-all duration-200 shadow-md hover:shadow-lg"
-                      >
-                        Yo'q
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Teacher Modal */}
-              {showTeacherModal && (
-                <div
-                  className="fixed inset-0 bg-black bg-opacity-0 z-50 flex items-center justify-center p-4"
-                  onClick={() => {
-                    resetTeacherForm()
-                  }}
-                  style={{
-                    animation: 'fadeIn 0.3s ease-in-out forwards'
-                  }}
-                >
-                  <div
-                    className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto relative`}
-                    onClick={(e) => e.stopPropagation()}
-                    style={{
-                      animation: 'slideUp 0.3s ease-out forwards'
-                    }}
-                  >
-                    <div className="flex items-center justify-between mb-6">
-                      <h2
-                        className={`text-xl font-bold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                      >
-                        {editingTeacherId ? "Tyutorni Tahrirlash" : "Yangi Tyutor Qo'shish"}
-                      </h2>
-                      <button
-                        onClick={() => {
-                          resetTeacherForm()
-                        }}
-                        className={`transition-colors ${isDarkMode ? "text-[#8b9ba8] hover:text-white" : "text-slate-600 hover:text-slate-900"}`}
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-                    <form onSubmit={handleAddOrUpdateTeacher} className="space-y-4">
-                    <div>
-                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
-                        F.I.Sh <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={teacherForm.name}
-                        onChange={(event) => setTeacherForm({ ...teacherForm, name: event.target.value })}
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#00d4aa] transition-colors duration-300 ${
-                          isDarkMode
-                            ? "bg-[#0e1a22] border-[#1a2d3a] text-white"
-                            : "bg-white border-slate-300 text-slate-900"
-                        }`}
-                        placeholder="Tyutor ismi"
-                      />
-                    </div>
-                    <div>
-                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
-                        Lavozim <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={teacherForm.title}
-                        onChange={(event) => setTeacherForm({ ...teacherForm, title: event.target.value })}
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#00d4aa] transition-colors duration-300 ${
-                          isDarkMode
-                            ? "bg-[#0e1a22] border-[#1a2d3a] text-white"
-                            : "bg-white border-slate-300 text-slate-900"
-                        }`}
-                      >
-                        <option value="">Lavozim tanlang</option>
-                        <option value="Tyutor">Tyutor</option>
-                        <option value="Katta Tyutor">Katta Tyutor</option>
-                        <option value="Tyutor-Stajor">Tyutor-Stajor</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>Mutaxassislik</label>
-                      <input
-                        type="text"
-                        value={teacherForm.specialization}
-                        onChange={(event) => setTeacherForm({ ...teacherForm, specialization: event.target.value })}
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#00d4aa] transition-colors duration-300 ${
-                          isDarkMode
-                            ? "bg-[#0e1a22] border-[#1a2d3a] text-white"
-                            : "bg-white border-slate-300 text-slate-900"
-                        }`}
-                        placeholder="Masalan: Kompyuter tamoyillari"
-                        maxLength={40}
-                      />
-                    </div>
-                    <div>
-                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
-                        Email <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        value={teacherForm.email}
-                        onChange={(event) => setTeacherForm({ ...teacherForm, email: event.target.value })}
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#00d4aa] transition-colors duration-300 ${
-                          isDarkMode
-                            ? "bg-[#0e1a22] border-[#1a2d3a] text-white"
-                            : "bg-white border-slate-300 text-slate-900"
-                        }`}
-                        placeholder="name@urspi.uz"
-                      />
-                    </div>
-                    <div>
-                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
-                        Telefon <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="tel"
-                        value={teacherForm.phone}
-                        onChange={(event) => {
-                          const value = event.target.value
-                          // Remove all non-digit characters
-                          const digits = value.replace(/\D/g, '')
-                          
-                          // Format: +998 XX XXX XX XX
-                          let formatted = '+998'
-                          if (digits.length > 3) {
-                            formatted += ' ' + digits.slice(3, 5)
-                          }
-                          if (digits.length > 5) {
-                            formatted += ' ' + digits.slice(5, 8)
-                          }
-                          if (digits.length > 8) {
-                            formatted += ' ' + digits.slice(8, 10)
-                          }
-                          if (digits.length > 10) {
-                            formatted += ' ' + digits.slice(10, 12)
-                          }
-                          
-                          setTeacherForm({ ...teacherForm, phone: formatted })
-                        }}
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#00d4aa] transition-colors duration-300 ${
-                          isDarkMode
-                            ? "bg-[#0e1a22] border-[#1a2d3a] text-white"
-                            : "bg-white border-slate-300 text-slate-900"
-                        }`}
-                        placeholder="+998 90 123 45 67"
-                        maxLength="17"
-                      />
-                    </div>
-                    <div>
-                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>Tajriba</label>
-                      <input
-                        type="text"
-                        value={teacherForm.experience}
-                        onChange={(event) => setTeacherForm({ ...teacherForm, experience: event.target.value })}
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#00d4aa] transition-colors duration-300 ${
-                          isDarkMode
-                            ? "bg-[#0e1a22] border-[#1a2d3a] text-white"
-                            : "bg-white border-slate-300 text-slate-900"
-                        }`}
-                        placeholder="Masalan: 10 yil"
-                      />
-                    </div>
-                    <div>
-                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>Qisqacha ma'lumot</label>
-                      <textarea
-                        value={teacherForm.bio}
-                        onChange={(event) => setTeacherForm({ ...teacherForm, bio: event.target.value })}
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#00d4aa] transition-colors duration-300 ${
-                          isDarkMode
-                            ? "bg-[#0e1a22] border-[#1a2d3a] text-white"
-                            : "bg-white border-slate-300 text-slate-900"
-                        }`}
-                        rows="3"
-                        placeholder="Qisqacha ta'rif"
-                      />
-                    </div>
-                    <div>
-                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>QR uchun havola</label>
-                      <input
-                        type="text"
-                        value={teacherForm.qrData}
-                        onChange={(event) => setTeacherForm({ ...teacherForm, qrData: event.target.value })}
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#00d4aa] transition-colors duration-300 ${
-                          isDarkMode
-                            ? "bg-[#0e1a22] border-[#1a2d3a] text-white"
-                            : "bg-white border-slate-300 text-slate-900"
-                        }`}
-                        placeholder="https://..."
-                      />
-                    </div>
-                    <div>
-                      <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
-                        Rasm yuklash <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageChange}
-                        className={`w-full px-3 py-2 border rounded-lg transition-colors duration-300 ${
-                          isDarkMode
-                            ? "bg-[#0e1a22] border-[#1a2d3a] text-white"
-                            : "bg-white border-slate-300 text-slate-900"
-                        }`}
-                      />
-                      {imagePreview && (
-                        <img
-                          src={imagePreview || "/placeholder.svg"}
-                          alt="Preview"
-                          className="w-full h-32 object-cover rounded-lg mt-2"
-                        />
-                      )}
-                    </div>
-                    <div className="flex gap-3">
-                      <button
-                        type="submit"
-                        className="flex-1 px-4 py-2 bg-[#00d4aa] text-white rounded-xl font-medium hover:bg-[#00b894] transition-all duration-200 shadow-md hover:shadow-lg"
-                      >
-                        {editingTeacherId ? "Saqlash" : "Qo'shish"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          resetTeacherForm()
-                        }}
-                        className={`px-4 py-2 border rounded-xl font-medium transition-all duration-200 ${
-                          isDarkMode
-                            ? "border-[#1a2d3a] text-white hover:bg-[#1a2d3a]"
-                            : "border-slate-300 text-slate-900 hover:bg-slate-100"
-                        }`}
-                      >
-                        Bekor qilish
-                      </button>
-                    </div>
-                    </form>
-                  </div>
-                </div>
-              )}
-
-              <div className="w-full">
-                <div className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-lg p-6 transition-colors duration-300`}>
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className={`text-xl font-bold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>Tyutorlar Ro'yxati</h2>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={handleDownloadStatistics}
-                        className="flex items-center gap-2 px-4 py-2 border border-[#00d4aa] text-[#00d4aa] rounded-xl font-medium hover:bg-[#00d4aa] hover:text-white transition-all duration-200 shadow-md hover:shadow-lg"
-                      >
-                        <Download className="w-4 h-4" />
-                        Statistika
-                      </button>
-                      <button
-                        onClick={() => {
-                          resetTeacherForm()
-                          setShowTeacherModal(true)
-                        }}
-                        className="flex items-center gap-2 px-4 py-2 bg-[#00d4aa] text-white rounded-xl font-medium hover:bg-[#00b894] transition-all duration-200 shadow-md hover:shadow-lg"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Qo'shish
-                      </button>
-                    </div>
-                  </div>
-                  
-                   {/* Search Input */}
-                   <div className="mb-6">
-                     <div className="flex gap-3">
-                       <div className="relative flex-1">
-                         <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors duration-300 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-400"}`} />
-                         <input
-                           type="text"
-                           value={teacherSearchQuery}
-                           onChange={(e) => setTeacherSearchQuery(e.target.value)}
-                           onKeyDown={(e) => {
-                             if (e.key === 'Enter') {
-                               e.preventDefault()
-                               setTeacherSearchTerm(teacherSearchQuery)
-                             }
-                           }}
-                           placeholder="Tyutor qidirish..."
-                           className={`w-full pl-10 pr-4 py-2.5 border-2 border-blue-500 rounded-full focus:outline-none focus:border-blue-600 transition-colors duration-300 ${
-                             isDarkMode
-                               ? "bg-[#0e1a22] text-white placeholder:text-[#8b9ba8]"
-                               : "bg-white text-slate-900 placeholder:text-slate-400"
-                           }`}
-                         />
-                       </div>
-                       <button
-                         type="button"
-                         onClick={() => setTeacherSearchTerm(teacherSearchQuery)}
-                         className="px-6 py-2.5 border-2 border-blue-500 text-blue-500 rounded-full font-medium hover:bg-blue-500 hover:text-white transition-all duration-200 whitespace-nowrap"
-                       >
-                         Qidirish
-                       </button>
-                     </div>
-                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {teachers
-                      .filter((teacher) => {
-                        if (!teacherSearchTerm.trim()) return true
-                        const query = teacherSearchTerm.toLowerCase()
-                        return (
-                          teacher.name?.toLowerCase().includes(query) ||
-                          teacher.title?.toLowerCase().includes(query) ||
-                          teacher.specialization?.toLowerCase().includes(query) ||
-                          teacher.email?.toLowerCase().includes(query)
-                        )
-                      })
-                      .map((teacher) => {
-                      const metrics = calculateTeacherMetrics(teacher.id, reviews)
-                      return (
-                        <div
-                          key={teacher.id}
-                          className={`rounded-xl border overflow-hidden transition-all duration-300 hover:shadow-lg ${
-                            isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"
-                          }`}
-                        >
-                          {/* Gradient Header */}
-                          <div className="h-24 bg-gradient-to-r from-blue-500 to-purple-600 relative">
-                            {/* Profile Picture */}
-                            <div className="absolute left-1/2 -translate-x-1/2 -bottom-12">
-                              <div className="w-24 h-24 rounded-full border-4 overflow-hidden bg-gray-200"
-                                style={{ borderColor: isDarkMode ? "#14232c" : "#fff" }}
-                              >
-                                {teacher.image ? (
-                                  <img
-                                    src={teacher.image}
-                                    alt={teacher.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <div className={`w-full h-full flex items-center justify-center ${isDarkMode ? "bg-[#1a2d3a]" : "bg-gray-200"}`}>
-                                    <Users className={`w-12 h-12 ${isDarkMode ? "text-[#8b9ba8]" : "text-gray-400"}`} />
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Content Section */}
-                          <div className="pt-16 pb-4 px-6">
-                            {/* Name and Title */}
-                            <div className="text-center mb-4">
-                              <h3 className={`text-xl font-bold mb-1 transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
-                                {teacher.name}
-                              </h3>
-                              <p className={`text-sm transition-colors duration-300 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>
-                                {teacher.title || "Tyutor"}
-                              </p>
-                            </div>
-
-                            {/* Experience */}
-                            {teacher.experience && (
-                              <div className="flex items-center justify-center gap-2 mb-4">
-                                <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                                <p className={`text-sm transition-colors duration-300 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>
-                                  <span className="font-semibold">{teacher.experience}</span>
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Bio */}
-                            {teacher.bio && (
-                              <div className="mb-4">
-                                <p className={`text-sm leading-relaxed transition-colors duration-300 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}
-                                  style={{
-                                    display: '-webkit-box',
-                                    WebkitLineClamp: 4,
-                                    WebkitBoxOrient: 'vertical',
-                                    overflow: 'hidden'
-                                  }}
-                                >
-                                  {teacher.bio}
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Rating Info */}
-                            <div className="mb-4 text-center">
-                              <p className="text-sm font-semibold text-yellow-400 mb-1">
-                                Reyting: {metrics.overall.toFixed(1)} / 5
-                              </p>
-                              <p className={`text-xs transition-colors duration-300 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>
-                                {metrics.total} ta murojaat
-                              </p>
-                            </div>
-
-                            {/* Action Buttons */}
-                            <div className="flex gap-2 mt-6">
-                              <button
-                                type="button"
-                                onClick={() => handleViewTeacher(teacher)}
-                                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border transition-all duration-200 text-blue-500 border-blue-500/30 hover:bg-blue-500/10 ${
-                                  isDarkMode ? "bg-[#0e1a22]" : "bg-white"
-                                }`}
-                              >
-                                <Eye className="w-4 h-4" />
-                                <span className="text-sm font-medium">Ko'rish</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleEditTeacher(teacher)}
-                                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border transition-all duration-200 text-green-500 border-green-500/30 hover:bg-green-500/10 ${
-                                  isDarkMode ? "bg-[#0e1a22]" : "bg-white"
-                                }`}
-                              >
-                                <Pencil className="w-4 h-4" />
-                                <span className="text-sm font-medium">Tahrirlash</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteTeacher(teacher.id)}
-                                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border transition-all duration-200 text-red-500 border-red-500/30 hover:bg-red-500/10 ${
-                                  isDarkMode ? "bg-[#0e1a22]" : "bg-white"
-                                }`}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                                <span className="text-sm font-medium">O'chirish</span>
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-              
-              {viewTeacher && (
-                <div
-                  className="fixed inset-0 bg-black bg-opacity-0 z-50 flex items-center justify-center p-4"
-                  onClick={() => setViewTeacher(null)}
-                  style={{
-                    animation: 'fadeIn 0.3s ease-in-out forwards'
-                  }}
-                >
-                  <div
-                    className={`${isDarkMode ? "bg-[#14232c] border-[#1a2d3a]" : "bg-white border-slate-200"} border rounded-xl p-6 w-full max-w-md relative max-h-[90vh] overflow-y-auto`}
-                    onClick={(e) => e.stopPropagation()}
-                    style={{
-                      animation: 'slideUp 0.3s ease-out forwards'
-                    }}
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <h2
-                        className={`text-xl font-bold transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                      >
-                        Tyutor ma'lumotlari
-                      </h2>
-                      <button
-                        onClick={() => setViewTeacher(null)}
-                        className={`transition-colors ${isDarkMode ? "text-[#8b9ba8] hover:text-white" : "text-slate-600 hover:text-slate-900"}`}
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-                    
-                    <div className="flex flex-col items-center mb-6">
-                      <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-[#00d4aa] mb-3">
-                        {viewTeacher.image ? (
-                          <img src={viewTeacher.image} alt={viewTeacher.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className={`w-full h-full flex items-center justify-center ${isDarkMode ? "bg-[#1a2d3a]" : "bg-gray-200"}`}>
-                            <Users className={`w-12 h-12 ${isDarkMode ? "text-[#8b9ba8]" : "text-gray-400"}`} />
-                          </div>
-                        )}
-                      </div>
-                      <h3 className={`text-lg font-bold text-center ${isDarkMode ? "text-white" : "text-slate-900"}`}>{viewTeacher.name}</h3>
-                      <p className={`text-sm ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>{viewTeacher.title}</p>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div>
-                        <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>Mutaxassislik:</p>
-                        <p className={`font-medium ${isDarkMode ? "text-white" : "text-slate-900"}`}>{viewTeacher.specialization || "-"}</p>
-                      </div>
-                      <div>
-                        <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>Email:</p>
-                        <p className={`font-medium ${isDarkMode ? "text-white" : "text-slate-900"}`}>{viewTeacher.email}</p>
-                      </div>
-                      <div>
-                        <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>Telefon:</p>
-                        <p className={`font-medium ${isDarkMode ? "text-white" : "text-slate-900"}`}>{viewTeacher.phone}</p>
-                      </div>
-                      <div>
-                        <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>Tajriba:</p>
-                        <p className={`font-medium ${isDarkMode ? "text-white" : "text-slate-900"}`}>{viewTeacher.experience || "-"}</p>
-                      </div>
-                       <div>
-                        <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>Reyting:</p>
-                        <div className="flex items-center gap-2">
-                           <span className="text-yellow-400 font-bold">★ {calculateTeacherMetrics(viewTeacher.id, reviews).overall.toFixed(1)}</span>
-                           <span className={`text-sm ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>({calculateTeacherMetrics(viewTeacher.id, reviews).total} ta murojaat)</span>
-                        </div>
-                      </div>
-                      {viewTeacher.bio && (
-                          <div>
-                              <p className={`text-sm font-medium mb-1 ${isDarkMode ? "text-[#8b9ba8]" : "text-slate-600"}`}>Bio:</p>
-                              <p className={`text-sm ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}>{viewTeacher.bio}</p>
-                          </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
+            <Tutors isDarkMode={isDarkMode} />
           )}
 
           {activeNavItem === "news" && (

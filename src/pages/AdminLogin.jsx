@@ -11,26 +11,49 @@ export default function AdminLogin({ navigate, setIsAdmin }) {
   })
   const [showError, setShowError] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [loading, setLoading] = useState(false)
 
-  const adminEmail = "admin@urspi.uz"
-  const adminPassword = "Admin123!"
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
+    setLoading(true)
 
-    if (credentials.email === adminEmail && credentials.password === adminPassword) {
-      localStorage.setItem(
-        "adminSession",
-        JSON.stringify({
-          email: credentials.email,
-          loginTime: new Date().toISOString(),
+    try {
+      const response = await fetch("http://teacher.urspi.uz/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: credentials.username,
+          password: credentials.password,
         }),
-      )
-      setIsAdmin(true)
-      navigate("admin")
-    } else {
+      })
+
+      const data = await response.json()
+      console.log("Login response:", data)
+
+      if (response.ok && data.accessToken && data.refreshToken) {
+        localStorage.setItem(
+          "adminSession",
+          JSON.stringify({
+            username: credentials.username,
+            accessToken: data.accessToken,
+            refreshToken: data.refreshToken,
+            loginTime: new Date().toISOString(),
+          }),
+        )
+        setIsAdmin(true)
+        navigate("admin")
+      } else {
+        setShowError(true)
+        setTimeout(() => setShowError(false), 3000)
+      }
+    } catch (error) {
+      console.error("Login error:", error)
       setShowError(true)
       setTimeout(() => setShowError(false), 3000)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -60,16 +83,16 @@ export default function AdminLogin({ navigate, setIsAdmin }) {
           <img src={logo} alt="UrSPI Logo" className="h-24 mx-auto mb-4 object-contain" />
           <h1 className="text-3xl font-bold text-slate-900 mb-2">UrSPI Admin</h1>
           <p className="text-slate-600">Admin foydalanuvchining hissobini kiriting</p>
-          <p className="text-3xl font-bold text-red-500 mb-2">Ushbu Tizim Test rejimda ishlamoqda...</p>
+         
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-900 mb-1">Login</label>
             <input
-              type="email"
-              value={credentials.email}
-              onChange={(e) => setCredentials({ ...credentials, email: e.target.value })}
+              type="text"
+              value={credentials.username}
+              onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-blue-500"
               placeholder="Loginni kiriting"
             />
@@ -93,8 +116,8 @@ export default function AdminLogin({ navigate, setIsAdmin }) {
               </button>
             </div>
           </div>
-          <button type="submit" className="btn btn-primary w-full">
-            Kirish
+          <button type="submit" className="btn btn-primary w-full" disabled={loading}>
+            {loading ? "Yuklanmoqda..." : "Kirish"}
           </button>
         </form>
 {/* 
