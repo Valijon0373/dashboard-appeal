@@ -1,3 +1,4 @@
-# UrSPI - O'qituvchilar Rating Tizimi
+# UrSPI - Tutorga Murojaat botining Admin dashboardi
 ## Muallif
-UrSPI Rating System Team
+Valijon
+
